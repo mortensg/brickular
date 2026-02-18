@@ -119,4 +119,31 @@ describe('BrickTableComponent', () => {
 
     expect(headScroller.scrollLeft).toBe(48);
   });
+
+  it('moves focus with arrow key navigation between cells', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+
+    const firstRowCells = fixture.debugElement.queryAll(By.css('.b-table__row:first-child .b-table__cell'));
+    const firstCell = firstRowCells[0].nativeElement as HTMLElement;
+    const secondCell = firstRowCells[1].nativeElement as HTMLElement;
+
+    firstCell.focus();
+    firstCell.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(document.activeElement).toBe(secondCell);
+  });
+
+  it('focuses data cell on click without selecting row', () => {
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+
+    const firstCell = fixture.debugElement.query(By.css('.b-table__row:first-child .b-table__cell'));
+    firstCell.nativeElement.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(document.activeElement).toBe(firstCell.nativeElement);
+    expect(firstCell.nativeElement.classList.contains('b-table__cell--selected')).toBeFalse();
+  });
 });

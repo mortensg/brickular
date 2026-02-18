@@ -87,9 +87,10 @@ import {
         >
           <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
           <div class="b-table__window" [style.transform]="'translateY(' + translateYPx() + 'px)'">
-            @for (row of visibleRows(); track row.sourceIndex) {
+            @for (row of visibleRows(); track row.sourceIndex; let visibleRowIndex = $index) {
               <b-table-row
                 [row]="row"
+                [visibleRowIndex]="visibleRowIndex"
                 [columns]="renderedColumns()"
                 [columnWidths]="resolvedColumnWidths()"
                 [selectedIndices]="selectedIndices()"
@@ -98,6 +99,7 @@ import {
                 (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                 (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
                 (cancelEdit)="cancelEdit()"
+                (cellKeydown)="onCellKeydown($event)"
               />
             }
           </div>
@@ -493,6 +495,35 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
   protected cancelEdit(): void {
     this.editingCell.set(null);
+  }
+
+  protected onCellKeydown(event: { rowIndex: number; columnIndex: number; key: string }): void {
+    const rowCount = this.visibleRows().length;
+    const columnCount = this.renderedColumns().length;
+    if (rowCount === 0 || columnCount === 0) {
+      return;
+    }
+
+    const rowDelta = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+    const columnDelta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    const nextRow = Math.min(Math.max(event.rowIndex + rowDelta, 0), rowCount - 1);
+    let nextColumn = Math.min(Math.max(event.columnIndex + columnDelta, 0), columnCount - 1);
+
+    if (event.key === 'Home') {
+      nextColumn = 0;
+    }
+    if (event.key === 'End') {
+      nextColumn = columnCount - 1;
+    }
+
+    const viewport = this.viewport()?.nativeElement;
+    if (!viewport) {
+      return;
+    }
+
+    const selector = `.b-table__cell[data-nav-row="${nextRow}"][data-nav-col="${nextColumn}"]`;
+    const targetCell = viewport.querySelector<HTMLElement>(selector);
+    targetCell?.focus();
   }
 
   protected toggleSortById(columnId: string, addToSort: boolean): void {

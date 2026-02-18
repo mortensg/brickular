@@ -18,12 +18,15 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
         />
       </div>
 
-      @for (column of columns(); track column.id) {
+      @for (column of columns(); track column.id; let columnIndex = $index) {
         <div
           [class]="cellClasses(column)"
           [style.width.px]="columnWidths()[column.id]"
           role="gridcell"
+          [attr.data-nav-row]="visibleRowIndex()"
+          [attr.data-nav-col]="columnIndex"
           tabindex="0"
+          (keydown)="onCellKeydown($event, column.id, columnIndex)"
           (keydown.enter)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
           (dblclick)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
         >
@@ -46,6 +49,7 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
 })
 export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly row = input.required<BrickTableRow<T>>();
+  readonly visibleRowIndex = input(0);
   readonly columns = input<readonly BrickTableColumnDef<T>[]>([]);
   readonly columnWidths = input<Record<string, number>>({});
   readonly selectedIndices = input<readonly number[]>([]);
@@ -55,6 +59,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly startEdit = output<{ rowIndex: number; columnId: string }>();
   readonly commitCellEdit = output<{ row: T; rowIndex: number; columnId: string; nextValue: string }>();
   readonly cancelEdit = output<void>();
+  readonly cellKeydown = output<{ rowIndex: number; columnId: string; columnIndex: number; key: string }>();
 
   protected isRowSelected(): boolean {
     return this.selectedIndices().includes(this.row().sourceIndex);
@@ -89,6 +94,23 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
       rowIndex: this.row().sourceIndex,
       columnId,
       nextValue,
+    });
+  }
+
+  protected onCellKeydown(event: KeyboardEvent, columnId: string, columnIndex: number): void {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    const navigationKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
+    if (!navigationKeys.has(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    this.cellKeydown.emit({
+      rowIndex: this.visibleRowIndex(),
+      columnId,
+      columnIndex,
+      key: event.key,
     });
   }
 

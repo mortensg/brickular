@@ -175,6 +175,10 @@
   background: var(--b-table-hover-bg);
 }
 
+.b-table__row:hover .b-table__cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
 .b-table__cell--editable {
   cursor: text;
 }
@@ -196,6 +200,7 @@
 }
 
 .b-table__header-cell:focus-visible,
+.b-table__cell:focus,
 .b-table__cell:focus-visible,
 .b-table__editor:focus-visible,
 .b-table__toolbar input:focus-visible,
