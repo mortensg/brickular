@@ -1,3 +1,6 @@
+@use "tailwindcss";
+@source "../../../projects/brickular/src/lib/**/*.{ts,html,scss}";
+@source "../../../dist/brickular/**/*.{js,mjs}";
 @import '../../brickular/src/lib/styles/themes.css';
 
 html,

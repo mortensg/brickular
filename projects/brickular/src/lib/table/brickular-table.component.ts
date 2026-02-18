@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  ViewEncapsulation,
   computed,
   effect,
   input,
@@ -10,10 +11,10 @@ import {
   viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { BrickTableHeaderComponent } from './table-header.component';
+import { BrickTableRowComponent } from './table-row.component';
 import {
-  BrickCellContext,
   BrickCellEditEvent,
-  BrickFilterType,
   BrickFilterValue,
   BrickRowData,
   BrickSelectionChange,
@@ -24,12 +25,9 @@ import {
 } from './table-types';
 import {
   createRows,
-  displayValue as engineDisplayValue,
   filterRows,
   nextSortDirection,
   paginateRows,
-  rawValue as engineRawValue,
-  resolveFilterType as engineResolveFilterType,
   resolveRenderedColumns,
   sortRows,
   visibleRange as engineVisibleRange,
@@ -37,13 +35,14 @@ import {
 
 @Component({
   selector: 'b-table',
-  imports: [CommonModule],
+  imports: [CommonModule, BrickTableHeaderComponent, BrickTableRowComponent],
   template: `
-    <section class="b-table" role="region" aria-label="Brickular data table">
-      <header class="b-table__toolbar">
+    <section class="b-table space-y-3" role="region" aria-label="Brickular data table">
+      <header class="b-table__toolbar flex items-center justify-between gap-3">
         <label class="b-table__toolbar-search">
           <span class="b-visually-hidden">Quick filter</span>
           <input
+            class="rounded-md border px-2 py-1"
             type="text"
             [value]="quickFilter()"
             [placeholder]="quickFilterPlaceholder()"
@@ -51,7 +50,7 @@ import {
           />
         </label>
         @if (paginationEnabled()) {
-          <label class="b-table__toolbar-pagesize">
+          <label class="b-table__toolbar-pagesize inline-flex items-center gap-2">
             <span>Rows</span>
             <select [value]="pageSize()" (change)="onPageSizeChange($event)">
               @for (size of pageSizeOptions(); track size) {
@@ -64,114 +63,23 @@ import {
 
       <div class="b-table__scroll-shell">
         <div #headScroller class="b-table__head-scroller">
-          <div class="b-table__header-row" role="row">
-            <div class="b-table__select-cell" role="columnheader">
-              <input
-                type="checkbox"
-                [checked]="allVisibleSelected()"
-                [indeterminate]="someVisibleSelected()"
-                (change)="toggleSelectVisibleRows($event)"
-                aria-label="Select visible rows"
-              />
-            </div>
-            @for (column of renderedColumns(); track column.id) {
-              <div
-                class="b-table__header-cell"
-                [class.b-table__header-cell--sortable]="column.sortable !== false"
-                [class.b-table__header-cell--pinned-left]="column.pinned === 'left'"
-                [class.b-table__header-cell--pinned-right]="column.pinned === 'right'"
-                [style.width.px]="resolvedColumnWidths()[column.id]"
-                [style.minWidth.px]="column.minWidth ?? 80"
-                [style.maxWidth.px]="column.maxWidth ?? 600"
-                [title]="column.tooltip ?? column.header"
-                draggable="true"
-                role="columnheader"
-                tabindex="0"
-                (click)="toggleSort(column, $event.shiftKey)"
-                (dragstart)="onHeaderDragStart(column.id, $event)"
-                (dragover)="onHeaderDragOver($event)"
-                (drop)="onHeaderDrop(column.id)"
-              >
-                <span>{{ column.header }}</span>
-                <button
-                  type="button"
-                  class="b-table__pin-button"
-                  [disabled]="column.pinnable === false"
-                  (click)="cyclePinned(column.id, $event)"
-                  [attr.aria-label]="'Pin column ' + column.header"
-                >
-                  {{ pinnedLabel(column.pinned) }}
-                </button>
-                <span class="b-table__sort-indicator">{{ sortIndicator(column.id) }}</span>
-                @if (column.resizable !== false) {
-                  <button
-                    type="button"
-                    class="b-table__resize-handle"
-                    draggable="false"
-                    (dragstart)="$event.preventDefault(); $event.stopPropagation()"
-                    (mousedown)="startResize(column, $event)"
-                    [attr.aria-label]="'Resize column ' + column.header"
-                  ></button>
-                }
-              </div>
-            }
-          </div>
-
-          <div class="b-table__filter-row" role="row">
-            <div class="b-table__select-cell b-table__select-cell--empty"></div>
-            @for (column of renderedColumns(); track column.id) {
-              <div
-                class="b-table__filter-cell"
-                [style.width.px]="resolvedColumnWidths()[column.id]"
-                [style.minWidth.px]="column.minWidth ?? 80"
-                [style.maxWidth.px]="column.maxWidth ?? 600"
-              >
-                @if (column.filterable !== false) {
-                  @if (resolveFilterType(column) === 'number') {
-                    <div class="b-table__filter-range">
-                      <input
-                        type="number"
-                        class="b-table__filter-input"
-                        [value]="numberFilterMin(column.id)"
-                        placeholder="Min"
-                        (input)="setNumberFilter(column.id, 'min', $event)"
-                      />
-                      <input
-                        type="number"
-                        class="b-table__filter-input"
-                        [value]="numberFilterMax(column.id)"
-                        placeholder="Max"
-                        (input)="setNumberFilter(column.id, 'max', $event)"
-                      />
-                    </div>
-                  } @else if (resolveFilterType(column) === 'date') {
-                    <div class="b-table__filter-range">
-                      <input
-                        type="date"
-                        class="b-table__filter-input"
-                        [value]="dateFilterStart(column.id)"
-                        (input)="setDateFilter(column.id, 'start', $event)"
-                      />
-                      <input
-                        type="date"
-                        class="b-table__filter-input"
-                        [value]="dateFilterEnd(column.id)"
-                        (input)="setDateFilter(column.id, 'end', $event)"
-                      />
-                    </div>
-                  } @else {
-                    <input
-                      type="text"
-                      class="b-table__filter-input"
-                      [value]="textFilter(column.id)"
-                      placeholder="Filter"
-                      (input)="setTextFilter(column.id, $event)"
-                    />
-                  }
-                }
-              </div>
-            }
-          </div>
+          <b-table-header
+            [columns]="renderedColumns()"
+            [columnWidths]="resolvedColumnWidths()"
+            [allVisibleSelected]="allVisibleSelected()"
+            [someVisibleSelected]="someVisibleSelected()"
+            [sortIndicator]="sortIndicatorForHeader"
+            [filters]="filters()"
+            (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
+            (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
+            (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
+            (headerDrop)="onHeaderDrop($event)"
+            (resizeStart)="startResizeById($event.columnId, $event.event)"
+            (cyclePinned)="cyclePinned($event)"
+            (textFilterChange)="setTextFilter($event.columnId, $event.value)"
+            (numberFilterChange)="setNumberFilter($event.columnId, $event.edge, $event.value)"
+            (dateFilterChange)="setDateFilter($event.columnId, $event.edge, $event.value)"
+          />
         </div>
 
         <div
@@ -184,53 +92,25 @@ import {
         >
           <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
           <div class="b-table__window" [style.transform]="'translateY(' + translateYPx() + 'px)'">
-
             @for (row of visibleRows(); track row.sourceIndex) {
-              <div class="b-table__row" role="row">
-                <div class="b-table__select-cell" role="gridcell">
-                  <input
-                    type="checkbox"
-                    [checked]="isRowSelected(row.sourceIndex)"
-                    (click)="toggleRowSelection(row.sourceIndex, $event.shiftKey); $event.stopPropagation()"
-                    aria-label="Toggle row selection"
-                  />
-                </div>
-
-                @for (column of renderedColumns(); track column.id) {
-                  <div
-                    class="b-table__cell"
-                    [class.b-table__cell--editable]="column.editable === true"
-                    [class.b-table__cell--selected]="isRowSelected(row.sourceIndex)"
-                    [class.b-table__cell--pinned-left]="column.pinned === 'left'"
-                    [class.b-table__cell--pinned-right]="column.pinned === 'right'"
-                    [class]="cellClass(column, row.source, row.sourceIndex)"
-                    [style.width.px]="resolvedColumnWidths()[column.id]"
-                    role="gridcell"
-                    tabindex="0"
-                    (keydown)="onCellKeydown($event, row.sourceIndex, column.id)"
-                    (dblclick)="startEdit(row.sourceIndex, column.id)"
-                  >
-                    @if (isEditingCell(row.sourceIndex, column.id) && column.editable === true) {
-                      <input
-                        class="b-table__editor"
-                        [value]="displayValue(column, row.source)"
-                        (keydown.enter)="commitEdit(row.source, row.sourceIndex, column, $event)"
-                        (keydown.escape)="cancelEdit()"
-                        (blur)="commitEdit(row.source, row.sourceIndex, column, $event)"
-                      />
-                    } @else {
-                      {{ displayValue(column, row.source) }}
-                    }
-                  </div>
-                }
-              </div>
+              <b-table-row
+                [row]="row"
+                [columns]="renderedColumns()"
+                [columnWidths]="resolvedColumnWidths()"
+                [selectedIndices]="selectedIndices()"
+                [editingCell]="editingCell()"
+                (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
+                (startEdit)="startEdit($event.rowIndex, $event.columnId)"
+                (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
+                (cancelEdit)="cancelEdit()"
+              />
             }
           </div>
         </div>
       </div>
 
       @if (paginationEnabled()) {
-        <footer class="b-table__footer">
+        <footer class="b-table__footer flex items-center justify-between gap-3">
           <button type="button" (click)="goToPage(pageIndex() - 1)" [disabled]="pageIndex() <= 0">
             Previous
           </button>
@@ -248,6 +128,7 @@ import {
   `,
   styleUrl: './brickular-table.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
 })
 export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly viewport = viewChild<ElementRef<HTMLDivElement>>('viewport');
@@ -268,12 +149,12 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly editCommit = output<BrickCellEditEvent<T>>();
 
   protected readonly quickFilter = signal('');
-  private readonly filters = signal<Record<string, BrickFilterValue>>({});
+  protected readonly filters = signal<Record<string, BrickFilterValue>>({});
   private readonly sortState = signal<readonly BrickSortState[]>([]);
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(this.defaultPageSize());
-  private readonly selectedIndices = signal<readonly number[]>([]);
-  private readonly editingCell = signal<{ rowIndex: number; columnId: string } | null>(null);
+  protected readonly selectedIndices = signal<readonly number[]>([]);
+  protected readonly editingCell = signal<{ rowIndex: number; columnId: string } | null>(null);
   private readonly headerOrder = signal<readonly string[]>([]);
   private readonly pinnedColumns = signal<Record<string, 'left' | 'right' | undefined>>({});
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
@@ -285,6 +166,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly viewportHeight = signal(540);
   private readonly viewportWidth = signal(0);
   private readonly lastSelectedIndex = signal<number | null>(null);
+  protected readonly sortIndicatorForHeader = (columnId: string): string => this.sortIndicator(columnId);
 
   protected readonly renderedColumns = computed(() => {
     return resolveRenderedColumns(this.columnDefs(), this.hiddenColumns(), this.headerOrder(), this.pinnedColumns());
@@ -393,18 +275,20 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       );
     });
 
-    effect(() => {
+    effect((onCleanup) => {
       const viewportRef = this.viewport();
       if (!viewportRef) {
         return;
       }
-      const height = viewportRef.nativeElement.clientHeight;
-      const width = viewportRef.nativeElement.clientWidth;
-      if (height > 0) {
-        this.viewportHeight.set(height);
-      }
-      if (width > 0) {
-        this.viewportWidth.set(width);
+      const viewportElement = viewportRef.nativeElement;
+      const sync = (): void => this.syncViewportMetrics(viewportElement);
+      sync();
+      requestAnimationFrame(sync);
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const observer = new ResizeObserver(() => sync());
+        observer.observe(viewportElement);
+        onCleanup(() => observer.disconnect());
       }
     });
 
@@ -473,66 +357,33 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     return state.direction === 'asc' ? '▲' : '▼';
   }
 
-  protected resolveFilterType(column: BrickTableColumnDef<T>): BrickFilterType {
-    return engineResolveFilterType(column);
-  }
-
-  protected textFilter(columnId: string): string {
-    const value = this.filters()[columnId];
-    return value?.type === 'text' ? value.value : '';
-  }
-
-  protected numberFilterMin(columnId: string): string {
-    const value = this.filters()[columnId];
-    return value?.type === 'number' && value.min !== undefined ? String(value.min) : '';
-  }
-
-  protected numberFilterMax(columnId: string): string {
-    const value = this.filters()[columnId];
-    return value?.type === 'number' && value.max !== undefined ? String(value.max) : '';
-  }
-
-  protected dateFilterStart(columnId: string): string {
-    const value = this.filters()[columnId];
-    return value?.type === 'date' ? value.start ?? '' : '';
-  }
-
-  protected dateFilterEnd(columnId: string): string {
-    const value = this.filters()[columnId];
-    return value?.type === 'date' ? value.end ?? '' : '';
-  }
-
-  protected setTextFilter(columnId: string, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  protected setTextFilter(columnId: string, value: string): void {
     this.filters.update((current) => ({ ...current, [columnId]: { type: 'text', value } }));
     this.pageIndex.set(0);
   }
 
-  protected setNumberFilter(columnId: string, edge: 'min' | 'max', event: Event): void {
-    const value = (event.target as HTMLInputElement).valueAsNumber;
+  protected setNumberFilter(columnId: string, edge: 'min' | 'max', value?: number): void {
     this.filters.update((current) => {
       const existing = current[columnId]?.type === 'number' ? current[columnId] : { type: 'number' as const };
       const next = {
         ...existing,
-        [edge]: Number.isFinite(value) ? value : undefined,
+        [edge]: value,
       };
       return { ...current, [columnId]: next };
     });
     this.pageIndex.set(0);
   }
 
-  protected setDateFilter(columnId: string, edge: 'start' | 'end', event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  protected setDateFilter(columnId: string, edge: 'start' | 'end', value?: string): void {
     this.filters.update((current) => {
       const existing = current[columnId]?.type === 'date' ? current[columnId] : { type: 'date' as const };
-      const next = { ...existing, [edge]: value || undefined };
+      const next = { ...existing, [edge]: value };
       return { ...current, [columnId]: next };
     });
     this.pageIndex.set(0);
   }
 
-  protected toggleSelectVisibleRows(event: Event): void {
-    const checked = (event.target as HTMLInputElement).checked;
+  protected toggleSelectVisibleRows(checked: boolean): void {
     const visibleIndices = this.pagedRows().map((row) => row.sourceIndex);
     if (checked) {
       const union = new Set([...this.selectedIndices(), ...visibleIndices]);
@@ -573,19 +424,10 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.emitSelectionChange();
   }
 
-  protected isRowSelected(sourceIndex: number): boolean {
-    return this.selectedIndices().includes(sourceIndex);
-  }
-
   protected onViewportScroll(event: Event): void {
     const viewport = event.target as HTMLDivElement;
     this.scrollTop.set(viewport.scrollTop);
-    if (viewport.clientHeight > 0) {
-      this.viewportHeight.set(viewport.clientHeight);
-    }
-    if (viewport.clientWidth > 0) {
-      this.viewportWidth.set(viewport.clientWidth);
-    }
+    this.syncViewportMetrics(viewport);
     const headScroller = this.headScroller();
     if (headScroller) {
       headScroller.nativeElement.scrollLeft = viewport.scrollLeft;
@@ -625,10 +467,6 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     event.dataTransfer!.effectAllowed = 'move';
   }
 
-  protected onHeaderDragOver(event: DragEvent): void {
-    event.preventDefault();
-  }
-
   protected onHeaderDrop(targetColumnId: string): void {
     const sourceColumnId = this.dragColumnId();
     if (!sourceColumnId || sourceColumnId === targetColumnId) {
@@ -648,56 +486,22 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.dragColumnId.set(null);
   }
 
-  protected cyclePinned(columnId: string, event: Event): void {
-    event.stopPropagation();
+  protected cyclePinned(columnId: string): void {
     this.pinnedColumns.update((current) => {
       const nextPinned = current[columnId] === 'left' ? 'right' : current[columnId] === 'right' ? undefined : 'left';
       return { ...current, [columnId]: nextPinned };
     });
   }
 
-  protected pinnedLabel(pinned: 'left' | 'right' | undefined): string {
-    if (pinned === 'left') {
-      return 'L';
-    }
-    if (pinned === 'right') {
-      return 'R';
-    }
-    return '-';
-  }
-
-  protected cellClass(column: BrickTableColumnDef<T>, row: T, rowIndex: number): string {
-    const cellClass = column.cellClass;
-    if (!cellClass) {
-      return '';
-    }
-    if (typeof cellClass === 'string') {
-      return cellClass;
-    }
-    const context: BrickCellContext<T> = {
-      column,
-      row,
-      rowIndex,
-      value: engineRawValue(column, row),
-    };
-    return cellClass(context);
-  }
-
   protected startEdit(rowIndex: number, columnId: string): void {
     this.editingCell.set({ rowIndex, columnId });
   }
 
-  protected isEditingCell(rowIndex: number, columnId: string): boolean {
-    const current = this.editingCell();
-    return current?.rowIndex === rowIndex && current.columnId === columnId;
-  }
-
-  protected commitEdit(row: T, rowIndex: number, column: BrickTableColumnDef<T>, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  protected commitEdit(row: BrickRowData, rowIndex: number, columnId: string, value: string): void {
     this.editCommit.emit({
-      row,
+      row: row as T,
       rowIndex,
-      columnId: column.id,
+      columnId,
       nextValue: value,
     });
     this.editingCell.set(null);
@@ -707,20 +511,36 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.editingCell.set(null);
   }
 
-  protected onCellKeydown(event: KeyboardEvent, rowIndex: number, columnId: string): void {
-    if (event.key !== 'Enter') {
+  protected toggleSortById(columnId: string, addToSort: boolean): void {
+    const column = this.renderedColumns().find((entry) => entry.id === columnId);
+    if (!column) {
       return;
     }
-    this.startEdit(rowIndex, columnId);
+    this.toggleSort(column, addToSort);
   }
 
-  protected displayValue(column: BrickTableColumnDef<T>, row: T): string {
-    return engineDisplayValue(column, row);
+  protected startResizeById(columnId: string, event: MouseEvent): void {
+    const column = this.renderedColumns().find((entry) => entry.id === columnId);
+    if (!column) {
+      return;
+    }
+    this.startResize(column, event);
   }
 
   private emitSelectionChange(): void {
     const selected = new Set(this.selectedIndices());
     const selectedRows = this.data().filter((_, index) => selected.has(index));
     this.selectionChange.emit({ selectedRows });
+  }
+
+  private syncViewportMetrics(viewport: HTMLDivElement): void {
+    const height = viewport.clientHeight;
+    const width = viewport.clientWidth;
+    if (height > 0) {
+      this.viewportHeight.set(height);
+    }
+    if (width > 0) {
+      this.viewportWidth.set(width);
+    }
   }
 }

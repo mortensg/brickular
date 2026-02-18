@@ -74,6 +74,7 @@
   position: relative;
   overflow: auto;
   max-height: 560px;
+  scrollbar-gutter: stable;
 }
 
 .b-table__spacer {
