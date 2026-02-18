@@ -59,10 +59,11 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
     </div>
 
     <div class="b-table__filter-row" role="row">
-      <div class="b-table__select-cell b-table__select-cell--empty"></div>
+      <div class="b-table__select-cell b-table__select-cell--empty" role="gridcell"></div>
       @for (column of columns(); track column.id) {
         <div
           class="b-table__filter-cell"
+          role="gridcell"
           [style.width.px]="columnWidths()[column.id]"
           [style.minWidth.px]="column.minWidth ?? 80"
           [style.maxWidth.px]="column.maxWidth ?? 600"
@@ -73,6 +74,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                 <input
                   type="number"
                   class="b-table__filter-input"
+                  [attr.aria-label]="'Min filter for ' + column.header"
                   [value]="numberFilterMin(column.id)"
                   placeholder="Min"
                   (input)="setNumberFilter(column.id, 'min', $event)"
@@ -80,6 +82,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                 <input
                   type="number"
                   class="b-table__filter-input"
+                  [attr.aria-label]="'Max filter for ' + column.header"
                   [value]="numberFilterMax(column.id)"
                   placeholder="Max"
                   (input)="setNumberFilter(column.id, 'max', $event)"
@@ -90,12 +93,14 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                 <input
                   type="date"
                   class="b-table__filter-input"
+                  [attr.aria-label]="'Start date filter for ' + column.header"
                   [value]="dateFilterStart(column.id)"
                   (input)="setDateFilter(column.id, 'start', $event)"
                 />
                 <input
                   type="date"
                   class="b-table__filter-input"
+                  [attr.aria-label]="'End date filter for ' + column.header"
                   [value]="dateFilterEnd(column.id)"
                   (input)="setDateFilter(column.id, 'end', $event)"
                 />
@@ -104,6 +109,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
               <input
                 type="text"
                 class="b-table__filter-input"
+                [attr.aria-label]="'Filter for ' + column.header"
                 [value]="textFilter(column.id)"
                 placeholder="Filter"
                 (input)="setTextFilter(column.id, $event)"

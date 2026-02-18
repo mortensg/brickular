@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Docs smoke tests
+        run: pnpm run test:e2e:docs
+
       - name: Build docs
         run: pnpm run build:docs
 

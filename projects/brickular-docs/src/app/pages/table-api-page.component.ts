@@ -52,6 +52,13 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
         <li>Column resize does not trigger column reorder drag.</li>
         <li>Horizontal viewport scroll stays synchronized with the header scroller.</li>
       </ul>
+
+      <h2>Accessibility and keyboard support</h2>
+      <ul>
+        <li>Header and cells are keyboard focusable and editable with <code>Enter</code>.</li>
+        <li>Selection controls expose checkbox semantics for assistive technologies.</li>
+        <li>Docs smoke tests include automated a11y scans for serious/critical issues.</li>
+      </ul>
     </section>
   `,
   styleUrl: './docs-pages.scss',

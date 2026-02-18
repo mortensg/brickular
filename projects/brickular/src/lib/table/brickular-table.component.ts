@@ -58,7 +58,7 @@ import {
         (pageSizeChange)="onPageSizeChange($event)"
       />
 
-      <div class="b-table__scroll-shell">
+      <div class="b-table__scroll-shell" role="grid" [attr.aria-rowcount]="filteredRows().length">
         <div #headScroller class="b-table__head-scroller">
           <b-table-header
             [columns]="renderedColumns()"
@@ -82,8 +82,6 @@ import {
         <div
           #viewport
           class="b-table__viewport"
-          role="grid"
-          [attr.aria-rowcount]="filteredRows().length"
           [style.--b-row-height.px]="rowHeight()"
           (scroll)="onViewportScroll($event)"
         >

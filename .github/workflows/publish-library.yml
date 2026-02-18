@@ -27,8 +27,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build library
-        run: pnpm run build:lib
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Release readiness checks
+        run: pnpm run release:verify
 
       - name: Publish package
         run: npm publish --access public

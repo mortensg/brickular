@@ -48,6 +48,13 @@ Then import standalone components:
 import { BrickTableComponent } from 'brickular';
 ```
 
+Subpath imports are also available:
+
+```ts
+import { BrickTableComponent } from 'brickular/table';
+import { BrickButtonComponent, BrickInputComponent, BrickBadgeComponent } from 'brickular/primitives';
+```
+
 ## Table features in this version
 
 - Typed column definitions (`BrickTableColumnDef<T>`).
@@ -58,6 +65,16 @@ import { BrickTableComponent } from 'brickular';
 - Inline cell editing events.
 - Row virtualization.
 - Column reordering, pinning, and resizing.
+
+## Release readiness commands
+
+```bash
+# Docs smoke + a11y checks (Playwright)
+npm run test:e2e:docs
+
+# Full release gate used in CI
+npm run release:verify
+```
 
 ## Theme tokens
 

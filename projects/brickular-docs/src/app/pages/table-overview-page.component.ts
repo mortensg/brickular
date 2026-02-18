@@ -23,6 +23,12 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 
       <h2>Basic usage</h2>
       <pre><code>import &#123; BrickTableComponent &#125; from 'brickular';</code></pre>
+
+      <h2>Migration note</h2>
+      <p>
+        Both <code>brickular</code> and <code>brickular/table</code> imports are supported in v1. Prefer
+        <code>brickular</code> for new code and keep <code>brickular/table</code> for incremental migrations.
+      </p>
     </section>
   `,
   styleUrl: './docs-pages.scss',
