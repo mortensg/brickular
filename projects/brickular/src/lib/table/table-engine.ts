@@ -22,7 +22,7 @@ export function resolveRenderedColumns<T extends BrickRowData>(
   const orderMap = new Map(order.map((id, index) => [id, index]));
   const visible = columns.filter((column) => !column.hidden && !hiddenColumns[column.id]);
 
-  return [...visible].sort((left, right) => {
+  const sorted = [...visible].sort((left, right) => {
     const leftPinned = pinnedColumns[left.id] ?? left.pinned;
     const rightPinned = pinnedColumns[right.id] ?? right.pinned;
     if (leftPinned !== rightPinned) {
@@ -34,6 +34,15 @@ export function resolveRenderedColumns<T extends BrickRowData>(
       }
     }
     return (orderMap.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(right.id) ?? Number.MAX_SAFE_INTEGER);
+  });
+
+  // Return columns with their effective pinned state so templates and cell variants stay in sync
+  return sorted.map((column) => {
+    const effectivePinned = pinnedColumns[column.id] ?? column.pinned;
+    return {
+      ...column,
+      pinned: effectivePinned,
+    };
   });
 }
 

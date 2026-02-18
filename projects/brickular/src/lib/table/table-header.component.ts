@@ -29,6 +29,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
           role="columnheader"
           tabindex="0"
           (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
+          (contextmenu)="onHeaderContextMenu($event, column)"
           (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
           (dragover)="onHeaderDragOver($event)"
           (drop)="headerDrop.emit(column.id)"
@@ -64,6 +65,8 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
         <div
           class="b-table__filter-cell"
           role="gridcell"
+          [class.b-table__filter-cell--pinned-left]="column.pinned === 'left'"
+          [class.b-table__filter-cell--pinned-right]="column.pinned === 'right'"
           [style.width.px]="columnWidths()[column.id]"
           [style.minWidth.px]="column.minWidth ?? 80"
           [style.maxWidth.px]="column.maxWidth ?? 600"
@@ -136,6 +139,7 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly headerDrop = output<string>();
   readonly resizeStart = output<{ columnId: string; event: MouseEvent }>();
   readonly cyclePinned = output<string>();
+  readonly headerContextMenu = output<{ columnId: string; x: number; y: number }>();
   readonly textFilterChange = output<{ columnId: string; value: string }>();
   readonly numberFilterChange = output<{ columnId: string; edge: 'min' | 'max'; value?: number }>();
   readonly dateFilterChange = output<{ columnId: string; edge: 'start' | 'end'; value?: string }>();
@@ -148,6 +152,12 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
         pinned: toPinVariant(column.pinned),
       }),
     ].join(' ');
+  }
+
+  protected onHeaderContextMenu(event: MouseEvent, column: BrickTableColumnDef<T>): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.headerContextMenu.emit({ columnId: column.id, x: event.clientX, y: event.clientY });
   }
 
   protected onHeaderDragOver(event: DragEvent): void {

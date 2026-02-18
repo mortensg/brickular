@@ -24,16 +24,16 @@ test.describe('Brickular Docs Table', () => {
     await page.setViewportSize({ width: 640, height: 900 });
     await page.goto('table/examples');
 
-    const viewport = page.locator('.b-table__viewport');
-    await expect(viewport).toBeVisible();
+    const hScrollbar = page.locator('.b-table__scrollbar-h');
+    await expect(hScrollbar).toBeVisible();
 
     await expect
       .poll(async () => {
-        return viewport.evaluate((element) => element.scrollWidth > element.clientWidth);
+        return hScrollbar.evaluate((element) => element.scrollWidth > element.clientWidth);
       })
       .toBeTruthy();
 
-    await viewport.evaluate((element) => {
+    await hScrollbar.evaluate((element) => {
       element.scrollLeft = 120;
       element.dispatchEvent(new Event('scroll'));
     });

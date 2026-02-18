@@ -59,7 +59,7 @@ import {
       />
 
       <div class="b-table__scroll-shell" role="grid" [attr.aria-rowcount]="filteredRows().length">
-        <div #headScroller class="b-table__head-scroller">
+        <div #headScroller class="b-table__head-scroller" (wheel)="onHeaderWheel($event)">
           <b-table-header
             [columns]="renderedColumns()"
             [columnWidths]="resolvedColumnWidths()"
@@ -73,40 +73,139 @@ import {
             (headerDrop)="onHeaderDrop($event)"
             (resizeStart)="startResizeById($event.columnId, $event.event)"
             (cyclePinned)="cyclePinned($event)"
+            (headerContextMenu)="openHeaderContextMenu($event.columnId, $event.x, $event.y)"
             (textFilterChange)="setTextFilter($event.columnId, $event.value)"
             (numberFilterChange)="setNumberFilter($event.columnId, $event.edge, $event.value)"
             (dateFilterChange)="setDateFilter($event.columnId, $event.edge, $event.value)"
           />
         </div>
 
-        <div
-          #viewport
-          class="b-table__viewport"
-          [style.--b-row-height.px]="rowHeight()"
-          (scroll)="onViewportScroll($event)"
-        >
-          <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
-          <div class="b-table__window" [style.transform]="'translateY(' + translateYPx() + 'px)'">
-            @for (row of visibleRows(); track row.sourceIndex; let visibleRowIndex = $index) {
-              <b-table-row
-                [row]="row"
-                [visibleRowIndex]="visibleRowIndex"
-                [columns]="renderedColumns()"
-                [columnWidths]="resolvedColumnWidths()"
-                [selectedIndices]="selectedIndices()"
-                [editingCell]="editingCell()"
-                [activeCell]="activeCell()"
-                (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
-                (startEdit)="startEdit($event.rowIndex, $event.columnId)"
-                (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
-                (cancelEdit)="cancelEdit()"
-                (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
-                (cellKeydown)="onCellKeydown($event)"
-              />
-            }
+        <div class="b-table__body" [style.--b-row-height.px]="rowHeight()">
+          <div class="b-table__body-row">
+            <div
+              #bodyContent
+              class="b-table__grid-area"
+              (wheel)="onGridWheel($event)"
+            >
+              <!-- Row window: we render visibleRows (slice for scroll position), so no translateY needed -->
+              <div
+                class="b-table__row-window"
+                [style.height.px]="viewportHeight()"
+              >
+                @if (leftColumns().length > 0) {
+                  <div
+                    class="b-table__pane b-table__pane--left"
+                    [style.width.px]="leftPaneWidth()"
+                  >
+                    @for (row of visibleRows(); track row.sourceIndex; let visibleRowIndex = $index) {
+                      <b-table-row
+                        [row]="row"
+                        [visibleRowIndex]="visibleRowIndex"
+                        [columns]="leftColumns()"
+                        [columnWidths]="resolvedColumnWidths()"
+                        [selectedIndices]="selectedIndices()"
+                        [editingCell]="editingCell()"
+                        [activeCell]="activeCell()"
+                        (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
+                        (startEdit)="startEdit($event.rowIndex, $event.columnId)"
+                        (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
+                        (cancelEdit)="cancelEdit()"
+                        (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
+                        (cellKeydown)="onCellKeydown($event)"
+                      />
+                    }
+                  </div>
+                }
+                <div
+                  class="b-table__pane b-table__pane--center"
+                  [style.width.px]="centerPaneWidth()"
+                >
+                  <!-- Center only: horizontal offset via translateX (scrollbar drives centerScrollLeft) -->
+                  <div
+                    class="b-table__center-offset"
+                    [style.min-width.px]="centerColumnsTotalWidth()"
+                    [style.transform]="'translateX(' + (-centerScrollLeft()) + 'px)'"
+                  >
+                    @for (row of visibleRows(); track row.sourceIndex; let visibleRowIndex = $index) {
+                      <b-table-row
+                        [row]="row"
+                        [visibleRowIndex]="visibleRowIndex"
+                        [columns]="centerColumns()"
+                        [columnWidths]="resolvedColumnWidths()"
+                        [selectedIndices]="selectedIndices()"
+                        [editingCell]="editingCell()"
+                        [activeCell]="activeCell()"
+                        (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
+                        (startEdit)="startEdit($event.rowIndex, $event.columnId)"
+                        (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
+                        (cancelEdit)="cancelEdit()"
+                        (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
+                        (cellKeydown)="onCellKeydown($event)"
+                      />
+                    }
+                  </div>
+                </div>
+                @if (rightColumns().length > 0) {
+                  <div
+                    class="b-table__pane b-table__pane--right"
+                    [style.width.px]="rightPaneWidth()"
+                  >
+                    @for (row of visibleRows(); track row.sourceIndex; let visibleRowIndex = $index) {
+                      <b-table-row
+                        [row]="row"
+                        [visibleRowIndex]="visibleRowIndex"
+                        [columns]="rightColumns()"
+                        [columnWidths]="resolvedColumnWidths()"
+                        [selectedIndices]="selectedIndices()"
+                        [editingCell]="editingCell()"
+                        [activeCell]="activeCell()"
+                        (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
+                        (startEdit)="startEdit($event.rowIndex, $event.columnId)"
+                        (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
+                        (cancelEdit)="cancelEdit()"
+                        (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
+                        (cellKeydown)="onCellKeydown($event)"
+                      />
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+            <div
+              #verticalScrollbar
+              class="b-table__scrollbar-v"
+              (scroll)="onVerticalScrollbarScroll($event)"
+            >
+              <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
+            </div>
+          </div>
+          <div class="b-table__scrollbar-h-row">
+            <div class="b-table__scrollbar-h-spacer" [style.width.px]="leftPaneWidth()"></div>
+            <div
+              #horizontalScrollbar
+              class="b-table__scrollbar-h"
+              (scroll)="onHorizontalScrollbarScroll($event)"
+            >
+              <div class="b-table__spacer-h" [style.width.px]="centerColumnsTotalWidth()"></div>
+            </div>
+            <div class="b-table__scrollbar-h-spacer" [style.width.px]="rightPaneWidth()"></div>
           </div>
         </div>
+
       </div>
+
+      @if (headerMenuVisible()) {
+        <div
+          class="b-table__header-menu"
+          [style.left.px]="headerMenuPosition().x"
+          [style.top.px]="headerMenuPosition().y"
+          (click)="$event.stopPropagation()"
+        >
+          <button type="button" (click)="pinColumnFromMenu('left')">Pin left</button>
+          <button type="button" (click)="pinColumnFromMenu('right')">Pin right</button>
+          <button type="button" (click)="pinColumnFromMenu(undefined)">Unpin</button>
+        </div>
+      }
 
       <b-table-footer
         [paginationEnabled]="paginationEnabled()"
@@ -121,7 +220,9 @@ import {
   encapsulation: ViewEncapsulation.None,
 })
 export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
-  readonly viewport = viewChild<ElementRef<HTMLDivElement>>('viewport');
+  readonly bodyContent = viewChild<ElementRef<HTMLDivElement>>('bodyContent');
+  readonly verticalScrollbar = viewChild<ElementRef<HTMLDivElement>>('verticalScrollbar');
+  readonly horizontalScrollbar = viewChild<ElementRef<HTMLDivElement>>('horizontalScrollbar');
   readonly headScroller = viewChild<ElementRef<HTMLDivElement>>('headScroller');
 
   readonly data = input<readonly T[]>([]);
@@ -157,10 +258,14 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly isResizing = signal(false);
   private readonly resizeEndedAt = signal(0);
   private readonly scrollTop = signal(0);
-  private readonly viewportHeight = signal(540);
+  protected readonly centerScrollLeft = signal(0);
+  protected readonly viewportHeight = signal(540);
   private readonly viewportWidth = signal(0);
   private readonly lastSelectedIndex = signal<number | null>(null);
   protected readonly sortIndicatorForHeader = (columnId: string): string => this.sortIndicator(columnId);
+  private readonly headerMenuColumnId = signal<string | null>(null);
+  protected readonly headerMenuPosition = signal<{ x: number; y: number }>({ x: 0, y: 0 });
+  protected readonly headerMenuVisible = signal(false);
 
   protected readonly renderedColumns = computed(() => {
     return resolveRenderedColumns(this.columnDefs(), this.hiddenColumns(), this.headerOrder(), this.pinnedColumns());
@@ -188,10 +293,57 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly visibleRange = computed(() => {
     return engineVisibleRange(this.scrollTop(), this.viewportHeight(), this.rowHeight(), this.pagedRows().length);
   });
-  protected readonly translateYPx = computed(() => this.visibleRange().start * this.rowHeight());
   protected readonly visibleRows = computed(() => {
     const range = this.visibleRange();
     return this.pagedRows().slice(range.start, range.end);
+  });
+  protected readonly leftColumns = computed(() => this.renderedColumns().filter((column) => column.pinned === 'left'));
+  protected readonly rightColumns = computed(() => this.renderedColumns().filter((column) => column.pinned === 'right'));
+  protected readonly centerColumns = computed(() =>
+    this.renderedColumns().filter((column) => !column.pinned),
+  );
+  protected readonly leftPaneWidth = computed(() => {
+    const widths = this.resolvedColumnWidths();
+    const left = this.leftColumns();
+    if (left.length === 0) {
+      return 0;
+    }
+    const selectionWidthPx = 36;
+    const columnsWidth = left.reduce(
+      (sum, column) => sum + (widths[column.id] ?? column.width ?? 160),
+      0,
+    );
+    return selectionWidthPx + columnsWidth;
+  });
+  protected readonly rightPaneWidth = computed(() => {
+    const widths = this.resolvedColumnWidths();
+    const right = this.rightColumns();
+    if (right.length === 0) {
+      return 0;
+    }
+    return right.reduce(
+      (sum, column) => sum + (widths[column.id] ?? column.width ?? 160),
+      0,
+    );
+  });
+  protected readonly centerColumnsTotalWidth = computed(() => {
+    const widths = this.resolvedColumnWidths();
+    return this.centerColumns().reduce(
+      (sum, column) => sum + (widths[column.id] ?? column.width ?? 160),
+      0,
+    );
+  });
+  protected readonly totalTableWidthPx = computed(
+    () =>
+      this.leftPaneWidth() + this.centerColumnsTotalWidth() + this.rightPaneWidth(),
+  );
+  protected readonly centerPaneWidth = computed(() => {
+    const viewport = this.viewportWidth();
+    if (viewport <= 0) {
+      return 0;
+    }
+    const width = viewport - this.leftPaneWidth() - this.rightPaneWidth();
+    return width > 0 ? width : 0;
   });
   protected readonly resolvedColumnWidths = computed<Record<string, number>>(() => {
     const columns = this.renderedColumns();
@@ -228,6 +380,30 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       acc[column.id] = Math.min(max, Math.max(min, grown));
       return acc;
     }, {});
+  });
+
+  protected readonly leftPinnedScrollbarWidth = computed(() => {
+    const columns = this.renderedColumns();
+    const widths = this.resolvedColumnWidths();
+    if (columns.length === 0) {
+      return 0;
+    }
+    const selectionWidthPx = 36;
+    const pinnedWidth = columns
+      .filter((column) => column.pinned === 'left')
+      .reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
+    return pinnedWidth > 0 ? selectionWidthPx + pinnedWidth : selectionWidthPx;
+  });
+
+  protected readonly rightPinnedScrollbarWidth = computed(() => {
+    const columns = this.renderedColumns();
+    const widths = this.resolvedColumnWidths();
+    if (columns.length === 0) {
+      return 0;
+    }
+    return columns
+      .filter((column) => column.pinned === 'right')
+      .reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
   });
 
   protected readonly allVisibleSelected = computed(() => {
@@ -270,19 +446,39 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     });
 
     effect((onCleanup) => {
-      const viewportRef = this.viewport();
-      if (!viewportRef) {
+      const contentRef = this.bodyContent();
+      if (!contentRef) {
         return;
       }
-      const viewportElement = viewportRef.nativeElement;
-      const sync = (): void => this.syncViewportMetrics(viewportElement);
+      const contentElement = contentRef.nativeElement;
+      const sync = (): void => this.syncViewportMetrics(contentElement);
       sync();
       requestAnimationFrame(sync);
 
       if (typeof ResizeObserver !== 'undefined') {
         const observer = new ResizeObserver(() => sync());
-        observer.observe(viewportElement);
+        observer.observe(contentElement);
         onCleanup(() => observer.disconnect());
+      }
+    });
+
+    effect(() => {
+      const top = this.scrollTop();
+      const vBar = this.verticalScrollbar()?.nativeElement;
+      if (vBar && Math.abs(vBar.scrollTop - top) > 1) {
+        vBar.scrollTop = top;
+      }
+    });
+
+    effect(() => {
+      const left = this.centerScrollLeft();
+      const hBar = this.horizontalScrollbar()?.nativeElement;
+      const head = this.headScroller()?.nativeElement;
+      if (hBar && Math.abs(hBar.scrollLeft - left) > 1) {
+        hBar.scrollLeft = left;
+      }
+      if (head && Math.abs(head.scrollLeft - left) > 1) {
+        head.scrollLeft = left;
       }
     });
 
@@ -305,6 +501,28 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       if (rowIndex !== current.rowIndex || columnIndex !== current.columnIndex) {
         this.activeCell.set({ rowIndex, columnIndex });
       }
+    });
+
+    effect(() => {
+      if (this.headerMenuVisible()) {
+        const close = (): void => {
+          this.headerMenuVisible.set(false);
+          this.headerMenuColumnId.set(null);
+        };
+        const onClick = (): void => close();
+        const onEscape = (event: KeyboardEvent): void => {
+          if (event.key === 'Escape') {
+            close();
+          }
+        };
+        window.addEventListener('click', onClick);
+        window.addEventListener('keydown', onEscape);
+        return () => {
+          window.removeEventListener('click', onClick);
+          window.removeEventListener('keydown', onEscape);
+        };
+      }
+      return;
     });
   }
 
@@ -430,14 +648,47 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.emitSelectionChange();
   }
 
-  protected onViewportScroll(event: Event): void {
-    const viewport = event.target as HTMLDivElement;
-    this.scrollTop.set(viewport.scrollTop);
-    this.syncViewportMetrics(viewport);
-    const headScroller = this.headScroller();
-    if (headScroller) {
-      headScroller.nativeElement.scrollLeft = viewport.scrollLeft;
+  protected onVerticalScrollbarScroll(event: Event): void {
+    const el = event.target as HTMLDivElement;
+    this.scrollTop.set(el.scrollTop);
+  }
+
+  protected onHorizontalScrollbarScroll(event: Event): void {
+    const el = event.target as HTMLDivElement;
+    this.centerScrollLeft.set(el.scrollLeft);
+  }
+
+  protected onGridWheel(event: WheelEvent): void {
+    const vBar = this.verticalScrollbar()?.nativeElement;
+    const hBar = this.horizontalScrollbar()?.nativeElement;
+    const horizontalDelta = event.deltaX !== 0 ? event.deltaX : (event.shiftKey ? event.deltaY : 0);
+    const verticalDelta = !event.shiftKey && event.deltaY !== 0 ? event.deltaY : 0;
+    if (verticalDelta !== 0 && vBar) {
+      event.preventDefault();
+      vBar.scrollTop += verticalDelta;
+      this.scrollTop.set(vBar.scrollTop);
     }
+    if (horizontalDelta !== 0 && hBar) {
+      event.preventDefault();
+      hBar.scrollLeft += horizontalDelta;
+      this.centerScrollLeft.set(hBar.scrollLeft);
+    }
+  }
+
+  protected onHeaderWheel(event: WheelEvent): void {
+    const hBar = this.horizontalScrollbar()?.nativeElement;
+    const horizontalDelta = event.deltaX !== 0 ? event.deltaX : (event.shiftKey ? event.deltaY : 0);
+    if (horizontalDelta !== 0 && hBar) {
+      event.preventDefault();
+      hBar.scrollLeft += horizontalDelta;
+      this.centerScrollLeft.set(hBar.scrollLeft);
+    }
+  }
+
+  protected openHeaderContextMenu(columnId: string, x: number, y: number): void {
+    this.headerMenuColumnId.set(columnId);
+    this.headerMenuPosition.set({ x, y });
+    this.headerMenuVisible.set(true);
   }
 
   protected startResize(column: BrickTableColumnDef<T>, event: MouseEvent): void {
@@ -497,6 +748,19 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       const nextPinned = current[columnId] === 'left' ? 'right' : current[columnId] === 'right' ? undefined : 'left';
       return { ...current, [columnId]: nextPinned };
     });
+  }
+
+  protected pinColumnFromMenu(direction: BrickColumnPin | undefined): void {
+    const columnId = this.headerMenuColumnId();
+    if (!columnId) {
+      return;
+    }
+    this.pinnedColumns.update((current) => ({
+      ...current,
+      [columnId]: direction,
+    }));
+    this.headerMenuVisible.set(false);
+    this.headerMenuColumnId.set(null);
   }
 
   protected startEdit(rowIndex: number, columnId: string): void {
@@ -573,11 +837,11 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       }
     }
 
-    const viewport = this.viewport()?.nativeElement;
-    if (!viewport) {
+    const content = this.bodyContent()?.nativeElement;
+    if (!content) {
       return;
     }
-    this.focusCell(nextRow, nextColumn, viewport);
+    this.focusCell(nextRow, nextColumn, content);
   }
 
   protected toggleSortById(columnId: string, addToSort: boolean): void {
