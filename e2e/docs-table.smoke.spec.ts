@@ -9,11 +9,15 @@ test.describe('Brickular Docs Table', () => {
 
     const toggleButton = page.getByRole('button', { name: /theme/i });
     const shell = page.locator('.docs-shell');
-    const initialClass = await shell.getAttribute('class');
-    await toggleButton.click();
-    const nextClass = await shell.getAttribute('class');
+    const initialDarkMode = await shell.evaluate((element) => element.classList.contains('brickular-theme-dark'));
 
-    expect(nextClass).not.toBe(initialClass);
+    await toggleButton.click({ force: true });
+
+    await expect
+      .poll(async () => {
+        return shell.evaluate((element) => element.classList.contains('brickular-theme-dark'));
+      })
+      .toBe(!initialDarkMode);
   });
 
   test('keeps header aligned during horizontal scroll', async ({ page }) => {
