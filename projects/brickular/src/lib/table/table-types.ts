@@ -77,3 +77,8 @@ export interface BrickCellEditEvent<T extends BrickRowData> {
   readonly nextValue: unknown;
   readonly row: T;
 }
+
+export interface BrickTableRow<T extends BrickRowData> {
+  readonly source: T;
+  readonly sourceIndex: number;
+}

@@ -9,6 +9,13 @@
   },
   "license": "MIT",
   "style": "./styles/themes.css",
+  "exports": {
+    "./table": {
+      "types": "./index.d.ts",
+      "default": "./fesm2022/brickular.mjs"
+    },
+    "./styles/themes.css": "./styles/themes.css"
+  },
   "peerDependencies": {
     "@angular/common": "^20.3.0",
     "@angular/core": "^20.3.0"

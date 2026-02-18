@@ -17,16 +17,23 @@ import {
   BrickFilterValue,
   BrickRowData,
   BrickSelectionChange,
-  BrickSortDirection,
   BrickSortState,
   BrickTableColumnDef,
   BrickTablePageState,
+  BrickTableRow,
 } from './table-types';
-
-interface TableRow<T extends BrickRowData> {
-  readonly source: T;
-  readonly sourceIndex: number;
-}
+import {
+  createRows,
+  displayValue as engineDisplayValue,
+  filterRows,
+  nextSortDirection,
+  paginateRows,
+  rawValue as engineRawValue,
+  resolveFilterType as engineResolveFilterType,
+  resolveRenderedColumns,
+  sortRows,
+  visibleRange as engineVisibleRange,
+} from './table-engine';
 
 @Component({
   selector: 'b-table',
@@ -252,95 +259,25 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly lastSelectedIndex = signal<number | null>(null);
 
   protected readonly renderedColumns = computed(() => {
-    const columns = this.columnDefs();
-    const hiddenColumns = this.hiddenColumns();
-    const order = this.headerOrder();
-    const orderMap = new Map(order.map((id, index) => [id, index]));
-    const pinnedColumns = this.pinnedColumns();
-    const visible = columns.filter((column) => !column.hidden && !hiddenColumns[column.id]);
-
-    return [...visible].sort((left, right) => {
-      const leftPinned = pinnedColumns[left.id] ?? left.pinned;
-      const rightPinned = pinnedColumns[right.id] ?? right.pinned;
-      if (leftPinned !== rightPinned) {
-        if (leftPinned === 'left' || rightPinned === 'right') {
-          return -1;
-        }
-        if (leftPinned === 'right' || rightPinned === 'left') {
-          return 1;
-        }
-      }
-
-      return (orderMap.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
-        (orderMap.get(right.id) ?? Number.MAX_SAFE_INTEGER);
-    });
+    return resolveRenderedColumns(this.columnDefs(), this.hiddenColumns(), this.headerOrder(), this.pinnedColumns());
   });
 
-  protected readonly filteredRows = computed<readonly TableRow<T>[]>(() => {
-    const normalizedQuickFilter = this.quickFilter().toLowerCase().trim();
-    const filters = this.filters();
-    const rows = this.data().map((source, sourceIndex) => ({ source, sourceIndex }));
-    const columns = this.renderedColumns();
-
-    return rows.filter((row) => {
-      const quickMatch =
-        normalizedQuickFilter.length === 0 ||
-        columns.some((column) => this.displayValue(column, row.source).toLowerCase().includes(normalizedQuickFilter));
-      if (!quickMatch) {
-        return false;
-      }
-
-      return columns.every((column) => this.rowMatchesColumnFilter(row.source, column, filters[column.id]));
-    });
+  protected readonly filteredRows = computed<readonly BrickTableRow<T>[]>(() => {
+    return filterRows(createRows(this.data()), this.renderedColumns(), this.filters(), this.quickFilter());
   });
 
-  protected readonly sortedRows = computed<readonly TableRow<T>[]>(() => {
-    const rows = [...this.filteredRows()];
-    const states = this.sortState();
-    if (states.length === 0) {
-      return rows;
-    }
-
-    const columns = this.renderedColumns();
-    rows.sort((left, right) => {
-      for (const state of states) {
-        const column = columns.find((candidate) => candidate.id === state.columnId);
-        if (!column) {
-          continue;
-        }
-
-        const leftValue = this.rawValue(column, left.source);
-        const rightValue = this.rawValue(column, right.source);
-        const comparison = column.comparator
-          ? column.comparator(leftValue, rightValue, left.source, right.source)
-          : this.defaultCompare(leftValue, rightValue);
-        if (comparison !== 0) {
-          return state.direction === 'asc' ? comparison : -comparison;
-        }
-      }
-      return 0;
-    });
-
-    return rows;
+  protected readonly sortedRows = computed<readonly BrickTableRow<T>[]>(() => {
+    return sortRows(this.filteredRows(), this.renderedColumns(), this.sortState());
   });
 
   protected readonly pagedRows = computed(() => {
-    const pageIndex = this.pageIndex();
-    const pageSize = this.pageSize();
-    const rows = this.sortedRows();
-    const start = pageIndex * pageSize;
-    return rows.slice(start, start + pageSize);
+    return paginateRows(this.sortedRows(), this.pageIndex(), this.pageSize());
   });
 
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.sortedRows().length / this.pageSize())));
   protected readonly totalHeightPx = computed(() => this.pagedRows().length * this.rowHeight());
   protected readonly visibleRange = computed(() => {
-    const rowHeight = this.rowHeight();
-    const buffer = 5;
-    const start = Math.max(0, Math.floor(this.scrollTop() / rowHeight) - buffer);
-    const capacity = Math.ceil(this.viewportHeight() / rowHeight) + buffer * 2;
-    const end = Math.min(this.pagedRows().length, start + capacity);
-    return { start, end };
+    return engineVisibleRange(this.scrollTop(), this.viewportHeight(), this.rowHeight(), this.pagedRows().length);
   });
   protected readonly translateYPx = computed(() => this.visibleRange().start * this.rowHeight());
   protected readonly visibleRows = computed(() => {
@@ -426,7 +363,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
     const current = this.sortState();
     const existing = current.find((entry) => entry.columnId === column.id);
-    const nextDirection = this.nextDirection(existing?.direction);
+    const nextDirection = nextSortDirection(existing?.direction);
     const withoutColumn = current.filter((entry) => entry.columnId !== column.id);
     let next: readonly BrickSortState[];
 
@@ -450,7 +387,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected resolveFilterType(column: BrickTableColumnDef<T>): BrickFilterType {
-    return column.filterType ?? 'text';
+    return engineResolveFilterType(column);
   }
 
   protected textFilter(columnId: string): string {
@@ -637,7 +574,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       column,
       row,
       rowIndex,
-      value: this.rawValue(column, row),
+      value: engineRawValue(column, row),
     };
     return cellClass(context);
   }
@@ -674,76 +611,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected displayValue(column: BrickTableColumnDef<T>, row: T): string {
-    const rawValue = this.rawValue(column, row);
-    if (column.cellRenderer) {
-      return column.cellRenderer(rawValue, row);
-    }
-    if (column.valueFormatter) {
-      return column.valueFormatter(rawValue, row);
-    }
-    return rawValue === undefined || rawValue === null ? '' : String(rawValue);
-  }
-
-  private rawValue(column: BrickTableColumnDef<T>, row: T): unknown {
-    if (column.valueGetter) {
-      return column.valueGetter(row);
-    }
-    if (column.field) {
-      return row[column.field];
-    }
-    return undefined;
-  }
-
-  private rowMatchesColumnFilter(row: T, column: BrickTableColumnDef<T>, filter?: BrickFilterValue): boolean {
-    if (!filter) {
-      return true;
-    }
-
-    const rawValue = this.rawValue(column, row);
-    if (filter.type === 'text') {
-      return String(rawValue ?? '')
-        .toLowerCase()
-        .includes(filter.value.toLowerCase());
-    }
-    if (filter.type === 'number') {
-      const numberValue = Number(rawValue);
-      if (!Number.isFinite(numberValue)) {
-        return false;
-      }
-      const minPass = filter.min === undefined || numberValue >= filter.min;
-      const maxPass = filter.max === undefined || numberValue <= filter.max;
-      return minPass && maxPass;
-    }
-
-    const dateValue = rawValue ? new Date(String(rawValue)).getTime() : Number.NaN;
-    if (!Number.isFinite(dateValue)) {
-      return false;
-    }
-    const startPass = !filter.start || dateValue >= new Date(filter.start).getTime();
-    const endPass = !filter.end || dateValue <= new Date(filter.end).getTime();
-    return startPass && endPass;
-  }
-
-  private nextDirection(currentDirection: BrickSortDirection | undefined): BrickSortDirection | undefined {
-    if (!currentDirection) {
-      return 'asc';
-    }
-    if (currentDirection === 'asc') {
-      return 'desc';
-    }
-    return undefined;
-  }
-
-  private defaultCompare(left: unknown, right: unknown): number {
-    if (left === right) {
-      return 0;
-    }
-    const leftNumber = Number(left);
-    const rightNumber = Number(right);
-    if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
-      return leftNumber - rightNumber;
-    }
-    return String(left).localeCompare(String(right));
+    return engineDisplayValue(column, row);
   }
 
   private emitSelectionChange(): void {
