@@ -137,6 +137,7 @@ describe('BrickTableComponent', () => {
     expect(secondCell.getAttribute('tabindex')).toBe('0');
   });
 
+
   it('focuses data cell on click without selecting row', () => {
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();

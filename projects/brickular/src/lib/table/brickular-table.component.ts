@@ -145,7 +145,10 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly pageSize = signal(this.defaultPageSize());
   protected readonly selectedIndices = signal<readonly number[]>([]);
   protected readonly editingCell = signal<{ rowIndex: number; columnId: string } | null>(null);
-  protected readonly activeCell = signal<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
+  protected readonly activeCell = signal<{ rowIndex: number; columnIndex: number }>({
+    rowIndex: -1,
+    columnIndex: -1,
+  });
   private readonly headerOrder = signal<readonly string[]>([]);
   private readonly pinnedColumns = signal<Record<string, BrickColumnPin | undefined>>({});
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
@@ -293,10 +296,10 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     effect(() => {
       const rowCount = this.visibleRows().length;
       const columnCount = this.renderedColumns().length;
-      if (rowCount === 0 || columnCount === 0) {
+      const current = this.activeCell();
+      if (rowCount === 0 || columnCount === 0 || current.rowIndex < 0 || current.columnIndex < 0) {
         return;
       }
-      const current = this.activeCell();
       const rowIndex = Math.min(Math.max(current.rowIndex, 0), rowCount - 1);
       const columnIndex = Math.min(Math.max(current.columnIndex, 0), columnCount - 1);
       if (rowIndex !== current.rowIndex || columnIndex !== current.columnIndex) {
@@ -514,23 +517,60 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.editingCell.set(null);
   }
 
-  protected onCellKeydown(event: { rowIndex: number; columnIndex: number; key: string }): void {
+  protected onCellKeydown(event: { rowIndex: number; columnIndex: number; key: string; shiftKey: boolean }): void {
+    if (event.key === 'c' || event.key === 'C') {
+      const keyboard = (window.event ?? null) as KeyboardEvent | null;
+      if (keyboard && (keyboard.ctrlKey || keyboard.metaKey)) {
+        const rows = this.visibleRows();
+        const columns = this.renderedColumns();
+        const row = rows[event.rowIndex];
+        const column = columns[event.columnIndex];
+        if (row && column) {
+          const value = this.displayValueForClipboard(column, row.source as T);
+          if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+            void navigator.clipboard.writeText(value);
+          }
+        }
+        return;
+      }
+    }
     const rowCount = this.visibleRows().length;
     const columnCount = this.renderedColumns().length;
     if (rowCount === 0 || columnCount === 0) {
       return;
     }
 
-    const rowDelta = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
-    const columnDelta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-    const nextRow = Math.min(Math.max(event.rowIndex + rowDelta, 0), rowCount - 1);
-    let nextColumn = Math.min(Math.max(event.columnIndex + columnDelta, 0), columnCount - 1);
+    let nextRow = event.rowIndex;
+    let nextColumn = event.columnIndex;
 
-    if (event.key === 'Home') {
-      nextColumn = 0;
-    }
-    if (event.key === 'End') {
-      nextColumn = columnCount - 1;
+    if (event.key === 'Tab') {
+      if (event.shiftKey) {
+        if (event.columnIndex === 0) {
+          nextRow = Math.max(event.rowIndex - 1, 0);
+          nextColumn = columnCount - 1;
+        } else {
+          nextColumn = event.columnIndex - 1;
+        }
+      } else {
+        if (event.columnIndex === columnCount - 1) {
+          nextRow = Math.min(event.rowIndex + 1, rowCount - 1);
+          nextColumn = 0;
+        } else {
+          nextColumn = event.columnIndex + 1;
+        }
+      }
+    } else {
+      const rowDelta = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+      const columnDelta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+      nextRow = Math.min(Math.max(event.rowIndex + rowDelta, 0), rowCount - 1);
+      nextColumn = Math.min(Math.max(event.columnIndex + columnDelta, 0), columnCount - 1);
+
+      if (event.key === 'Home') {
+        nextColumn = 0;
+      }
+      if (event.key === 'End') {
+        nextColumn = columnCount - 1;
+      }
     }
 
     const viewport = this.viewport()?.nativeElement;
@@ -582,5 +622,16 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     const selector = `.b-table__cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"]`;
     const targetCell = viewport.querySelector<HTMLElement>(selector);
     targetCell?.focus();
+  }
+
+  private displayValueForClipboard(column: BrickTableColumnDef<T>, row: T): string {
+    const raw = column.valueGetter ? column.valueGetter(row) : column.field ? row[column.field] : undefined;
+    if (column.cellRenderer) {
+      return column.cellRenderer(raw, row);
+    }
+    if (column.valueFormatter) {
+      return column.valueFormatter(raw, row);
+    }
+    return raw === undefined || raw === null ? '' : String(raw);
   }
 }

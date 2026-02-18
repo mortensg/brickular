@@ -61,7 +61,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly startEdit = output<{ rowIndex: number; columnId: string }>();
   readonly commitCellEdit = output<{ row: T; rowIndex: number; columnId: string; nextValue: string }>();
   readonly cancelEdit = output<void>();
-  readonly cellKeydown = output<{ rowIndex: number; columnId: string; columnIndex: number; key: string }>();
+  readonly cellKeydown = output<{ rowIndex: number; columnId: string; columnIndex: number; key: string; shiftKey: boolean }>();
   readonly cellFocus = output<{ rowIndex: number; columnIndex: number }>();
 
   protected isRowSelected(): boolean {
@@ -105,6 +105,33 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
       return;
     }
+    if (event.key === ' ') {
+      event.preventDefault();
+      this.toggleSelection.emit({ rowIndex: this.row().sourceIndex, shiftKey: event.shiftKey });
+      return;
+    }
+    if ((event.key === 'c' || event.key === 'C') && (event.ctrlKey || event.metaKey)) {
+      this.cellKeydown.emit({
+        rowIndex: this.visibleRowIndex(),
+        columnId,
+        columnIndex,
+        key: event.key,
+        shiftKey: event.shiftKey,
+      });
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      this.cellKeydown.emit({
+        rowIndex: this.visibleRowIndex(),
+        columnId,
+        columnIndex,
+        key: event.key,
+        shiftKey: event.shiftKey,
+      });
+      return;
+    }
+
     const navigationKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
     if (!navigationKeys.has(event.key)) {
       return;
@@ -115,6 +142,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
       columnId,
       columnIndex,
       key: event.key,
+      shiftKey: event.shiftKey,
     });
   }
 
