@@ -4,10 +4,10 @@ overview: Set up the Brickular Angular 20 component library with a workspace str
 todos:
   - id: scaffold-workspace
     content: Scaffold an Angular 20 workspace with a `brickular` library and a dev app, configured for standalone components and strict TypeScript.
-    status: in_progress
+    status: completed
   - id: design-library-structure
     content: Set up the `brickular` library folder and public API structure inspired by Angular Material, with a `table` feature area as the first component family.
-    status: pending
+    status: in_progress
   - id: implement-core-table
     content: Implement the Brickular data table component with column definitions, sorting, basic filtering, pagination, selection, and virtualization-ready rendering using signals.
     status: pending
