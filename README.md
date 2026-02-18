@@ -76,6 +76,16 @@ npm run test:e2e:docs
 npm run release:verify
 ```
 
+## npm release flow (library only)
+
+Only `projects/brickular` is published to npm as the `brickular` package.  
+`projects/dev-app` and `projects/brickular-docs` are not npm packages.
+
+- Add/update `NPM_TOKEN` repository secret.
+- Bump `projects/brickular/package.json` version.
+- Create a GitHub release (or run `Publish Library` workflow manually).
+- Optional manual dry-run: run `Publish Library` with `dry_run=true` to build/validate/package without publishing.
+
 ## Theme tokens
 
 Brickular ships CSS variable themes in `styles/themes.css` from the built package:

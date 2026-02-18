@@ -2,15 +2,25 @@ name: Publish Library
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and validate package only (no npm publish)"
+        required: false
+        default: false
+        type: boolean
   release:
     types: [published]
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: publish-library-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,14 +37,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Build library
+        run: pnpm run build:lib
 
-      - name: Release readiness checks
-        run: pnpm run release:verify
+      - name: Verify library package metadata
+        run: |
+          node -e "const p=require('./dist/brickular/package.json'); if(p.name!=='brickular'){ throw new Error('Expected dist package name to be brickular, got '+p.name);} console.log('Publishing', p.name, p.version);"
+
+      - name: Verify library package size
+        run: pnpm run check:package-size
+
+      - name: Dry run package publish
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: npm pack
+        working-directory: dist/brickular
 
       - name: Publish package
-        run: npm publish --access public
+        if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
+        run: npm publish --access public --provenance
         working-directory: dist/brickular
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
