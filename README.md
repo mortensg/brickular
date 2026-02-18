@@ -86,6 +86,18 @@ Only `projects/brickular` is published to npm as the `brickular` package.
 - Create a GitHub release (or run `Publish Library` workflow manually).
 - Optional manual dry-run: run `Publish Library` with `dry_run=true` to build/validate/package without publishing.
 
+## Post-release verification checklist
+
+After each release, run this quick validation:
+
+```bash
+# Confirm npm has the expected version
+npm view brickular version
+
+# Confirm docs are serving from GitHub Pages
+curl -I https://mortensg.github.io/brickular/
+```
+
 ## Theme tokens
 
 Brickular ships CSS variable themes in `styles/themes.css` from the built package:
