@@ -10,9 +10,13 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 })
 export class App {
   protected readonly title = signal('brickular-docs');
-  protected readonly darkMode = signal(false);
+  protected readonly darkMode = signal(this.initialDarkMode());
 
   protected toggleTheme(): void {
     this.darkMode.update((value) => !value);
+  }
+
+  private initialDarkMode(): boolean {
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 }
