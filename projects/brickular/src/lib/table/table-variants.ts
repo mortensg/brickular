@@ -1,6 +1,7 @@
 import { cva } from 'class-variance-authority';
+import { BrickColumnPin } from './table-types';
 
-const pinState = (pinned: 'left' | 'right' | undefined): 'none' | 'left' | 'right' => {
+const pinState = (pinned: BrickColumnPin | undefined): 'none' | 'left' | 'right' => {
   if (pinned === 'left') {
     return 'left';
   }
@@ -50,5 +51,9 @@ export const tableBodyCellVariants = cva('b-table__cell', {
     pinned: 'none',
   },
 });
+
+export const tableToolbarControlVariants = cva(
+  'rounded-md border px-2 py-1 border-[var(--b-table-border)] bg-[var(--b-table-bg)] text-[var(--b-table-fg)]',
+);
 
 export const toPinVariant = pinState;

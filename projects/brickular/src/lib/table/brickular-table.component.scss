@@ -27,26 +27,6 @@
   color: var(--b-table-fg);
 }
 
-.b-table__toolbar,
-.b-table__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.b-table__toolbar-search input {
-  min-width: 240px;
-}
-
-.b-table__toolbar-pagesize {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.b-table__toolbar input,
-.b-table__toolbar select,
 .b-table__filter-cell input,
 .b-table__editor {
   border: 1px solid var(--b-table-border);

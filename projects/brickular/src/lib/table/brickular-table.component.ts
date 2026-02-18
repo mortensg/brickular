@@ -13,10 +13,14 @@ import {
 import { CommonModule } from '@angular/common';
 import { BrickTableHeaderComponent } from './table-header.component';
 import { BrickTableRowComponent } from './table-row.component';
+import { BrickTableToolbarComponent } from './table-toolbar.component';
+import { BrickTableFooterComponent } from './table-footer.component';
 import {
+  BrickColumnPin,
   BrickCellEditEvent,
   BrickFilterValue,
   BrickRowData,
+  BrickSelectionMode,
   BrickSelectionChange,
   BrickSortState,
   BrickTableColumnDef,
@@ -35,31 +39,24 @@ import {
 
 @Component({
   selector: 'b-table',
-  imports: [CommonModule, BrickTableHeaderComponent, BrickTableRowComponent],
+  imports: [
+    CommonModule,
+    BrickTableToolbarComponent,
+    BrickTableHeaderComponent,
+    BrickTableRowComponent,
+    BrickTableFooterComponent,
+  ],
   template: `
     <section class="b-table space-y-3" role="region" aria-label="Brickular data table">
-      <header class="b-table__toolbar flex items-center justify-between gap-3">
-        <label class="b-table__toolbar-search">
-          <span class="b-visually-hidden">Quick filter</span>
-          <input
-            class="rounded-md border px-2 py-1"
-            type="text"
-            [value]="quickFilter()"
-            [placeholder]="quickFilterPlaceholder()"
-            (input)="onQuickFilterInput($event)"
-          />
-        </label>
-        @if (paginationEnabled()) {
-          <label class="b-table__toolbar-pagesize inline-flex items-center gap-2">
-            <span>Rows</span>
-            <select [value]="pageSize()" (change)="onPageSizeChange($event)">
-              @for (size of pageSizeOptions(); track size) {
-                <option [value]="size">{{ size }}</option>
-              }
-            </select>
-          </label>
-        }
-      </header>
+      <b-table-toolbar
+        [quickFilter]="quickFilter()"
+        [quickFilterPlaceholder]="quickFilterPlaceholder()"
+        [paginationEnabled]="paginationEnabled()"
+        [pageSize]="pageSize()"
+        [pageSizeOptions]="pageSizeOptions()"
+        (quickFilterChange)="onQuickFilterChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      />
 
       <div class="b-table__scroll-shell">
         <div #headScroller class="b-table__head-scroller">
@@ -109,21 +106,12 @@ import {
         </div>
       </div>
 
-      @if (paginationEnabled()) {
-        <footer class="b-table__footer flex items-center justify-between gap-3">
-          <button type="button" (click)="goToPage(pageIndex() - 1)" [disabled]="pageIndex() <= 0">
-            Previous
-          </button>
-          <span>Page {{ pageIndex() + 1 }} / {{ totalPages() }}</span>
-          <button
-            type="button"
-            (click)="goToPage(pageIndex() + 1)"
-            [disabled]="pageIndex() + 1 >= totalPages()"
-          >
-            Next
-          </button>
-        </footer>
-      }
+      <b-table-footer
+        [paginationEnabled]="paginationEnabled()"
+        [pageIndex]="pageIndex()"
+        [totalPages]="totalPages()"
+        (pageIndexChange)="goToPage($event)"
+      />
     </section>
   `,
   styleUrl: './brickular-table.component.scss',
@@ -141,7 +129,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly paginationEnabled = input(true);
   readonly rowHeight = input(40);
   readonly quickFilterPlaceholder = input('Search table...');
-  readonly selectionMode = input<'single' | 'multiple'>('multiple');
+  readonly selectionMode = input<BrickSelectionMode>('multiple');
 
   readonly selectionChange = output<BrickSelectionChange<T>>();
   readonly sortChange = output<readonly BrickSortState[]>();
@@ -156,7 +144,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly selectedIndices = signal<readonly number[]>([]);
   protected readonly editingCell = signal<{ rowIndex: number; columnId: string } | null>(null);
   private readonly headerOrder = signal<readonly string[]>([]);
-  private readonly pinnedColumns = signal<Record<string, 'left' | 'right' | undefined>>({});
+  private readonly pinnedColumns = signal<Record<string, BrickColumnPin | undefined>>({});
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
   protected readonly columnWidths = signal<Record<string, number>>({});
   private readonly dragColumnId = signal<string | null>(null);
@@ -262,7 +250,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
         }, {}),
       );
       this.pinnedColumns.set(
-        defs.reduce<Record<string, 'left' | 'right' | undefined>>((acc, column) => {
+        defs.reduce<Record<string, BrickColumnPin | undefined>>((acc, column) => {
           acc[column.id] = column.pinned;
           return acc;
         }, {}),
@@ -300,14 +288,12 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     });
   }
 
-  protected onQuickFilterInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.quickFilter.set(input.value);
+  protected onQuickFilterChange(value: string): void {
+    this.quickFilter.set(value);
     this.pageIndex.set(0);
   }
 
-  protected onPageSizeChange(event: Event): void {
-    const nextSize = Number((event.target as HTMLSelectElement).value);
+  protected onPageSizeChange(nextSize: number): void {
     if (!Number.isFinite(nextSize) || nextSize <= 0) {
       return;
     }

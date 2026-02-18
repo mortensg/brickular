@@ -1,6 +1,8 @@
 export type BrickRowData = Record<string, unknown>;
 
 export type BrickSortDirection = 'asc' | 'desc';
+export type BrickSelectionMode = 'single' | 'multiple';
+export type BrickColumnPin = 'left' | 'right';
 
 export interface BrickSortState {
   readonly columnId: string;
@@ -52,7 +54,7 @@ export interface BrickTableColumnDef<T extends BrickRowData = BrickRowData> {
   readonly filterable?: boolean;
   readonly resizable?: boolean;
   readonly pinnable?: boolean;
-  readonly pinned?: 'left' | 'right';
+  readonly pinned?: BrickColumnPin;
   readonly valueGetter?: (row: T) => unknown;
   readonly valueSetter?: (row: T, value: unknown) => T;
   readonly valueFormatter?: (value: unknown, row: T) => string;

@@ -17,6 +17,12 @@ npm run start:dev
 
 Use `npm run start:docs` to run the docs site locally.
 
+To preview the production GitHub Pages build locally (with `/brickular/` base-href):
+
+```bash
+npm run preview:docs
+```
+
 ## Build targets
 
 ```bash
@@ -25,6 +31,9 @@ npm run build:lib
 
 # Build docs app for GitHub Pages
 npm run build:docs
+
+# Build docs app for local preview sync
+npm run build:docs:local
 ```
 
 ## Installing in another Angular project

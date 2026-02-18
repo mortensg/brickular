@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
+import { BrickColumnPin, BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
 import { resolveFilterType as engineResolveFilterType } from './table-engine';
 import { tableHeaderCellVariants, toPinVariant } from './table-variants';
 
@@ -205,7 +205,7 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     });
   }
 
-  protected pinnedLabel(pinned: 'left' | 'right' | undefined): string {
+  protected pinnedLabel(pinned: BrickColumnPin | undefined): string {
     if (pinned === 'left') {
       return 'L';
     }

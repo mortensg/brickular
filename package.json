@@ -9,7 +9,10 @@
     "build": "ng build brickular",
     "build:lib": "ng build brickular",
     "build:dev": "ng build dev-app",
+    "build:docs:local": "ng build brickular && ng build brickular-docs --configuration production --base-href /brickular/",
     "build:docs": "ng build brickular && ng build brickular-docs --configuration production --base-href /brickular/",
+    "preview:docs:sync": "mkdir -p dist/local-preview/brickular && rsync -a --delete dist/brickular-docs/browser/ dist/local-preview/brickular/ && rsync -a dist/brickular-docs/browser/ dist/local-preview/",
+    "preview:docs": "npm run build:docs:local && npm run preview:docs:sync && npx serve \"dist/local-preview\" -l 4273 -s",
     "build:all": "npm run build:lib && npm run build:dev && npm run build:docs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"

@@ -1,4 +1,5 @@
 import {
+  BrickColumnPin,
   BrickFilterType,
   BrickFilterValue,
   BrickRowData,
@@ -16,7 +17,7 @@ export function resolveRenderedColumns<T extends BrickRowData>(
   columns: readonly BrickTableColumnDef<T>[],
   hiddenColumns: Record<string, boolean>,
   order: readonly string[],
-  pinnedColumns: Record<string, 'left' | 'right' | undefined>,
+  pinnedColumns: Record<string, BrickColumnPin | undefined>,
 ): readonly BrickTableColumnDef<T>[] {
   const orderMap = new Map(order.map((id, index) => [id, index]));
   const visible = columns.filter((column) => !column.hidden && !hiddenColumns[column.id]);
