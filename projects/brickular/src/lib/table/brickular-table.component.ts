@@ -95,10 +95,12 @@ import {
                 [columnWidths]="resolvedColumnWidths()"
                 [selectedIndices]="selectedIndices()"
                 [editingCell]="editingCell()"
+                [activeCell]="activeCell()"
                 (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
                 (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                 (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
                 (cancelEdit)="cancelEdit()"
+                (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
                 (cellKeydown)="onCellKeydown($event)"
               />
             }
@@ -143,6 +145,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly pageSize = signal(this.defaultPageSize());
   protected readonly selectedIndices = signal<readonly number[]>([]);
   protected readonly editingCell = signal<{ rowIndex: number; columnId: string } | null>(null);
+  protected readonly activeCell = signal<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
   private readonly headerOrder = signal<readonly string[]>([]);
   private readonly pinnedColumns = signal<Record<string, BrickColumnPin | undefined>>({});
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
@@ -284,6 +287,20 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       const maxPage = this.totalPages() - 1;
       if (this.pageIndex() > maxPage) {
         this.pageIndex.set(maxPage);
+      }
+    });
+
+    effect(() => {
+      const rowCount = this.visibleRows().length;
+      const columnCount = this.renderedColumns().length;
+      if (rowCount === 0 || columnCount === 0) {
+        return;
+      }
+      const current = this.activeCell();
+      const rowIndex = Math.min(Math.max(current.rowIndex, 0), rowCount - 1);
+      const columnIndex = Math.min(Math.max(current.columnIndex, 0), columnCount - 1);
+      if (rowIndex !== current.rowIndex || columnIndex !== current.columnIndex) {
+        this.activeCell.set({ rowIndex, columnIndex });
       }
     });
   }
@@ -520,10 +537,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (!viewport) {
       return;
     }
-
-    const selector = `.b-table__cell[data-nav-row="${nextRow}"][data-nav-col="${nextColumn}"]`;
-    const targetCell = viewport.querySelector<HTMLElement>(selector);
-    targetCell?.focus();
+    this.focusCell(nextRow, nextColumn, viewport);
   }
 
   protected toggleSortById(columnId: string, addToSort: boolean): void {
@@ -557,5 +571,16 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (width > 0) {
       this.viewportWidth.set(width);
     }
+  }
+
+  protected setActiveCell(rowIndex: number, columnIndex: number): void {
+    this.activeCell.set({ rowIndex, columnIndex });
+  }
+
+  private focusCell(rowIndex: number, columnIndex: number, viewport: HTMLDivElement): void {
+    this.activeCell.set({ rowIndex, columnIndex });
+    const selector = `.b-table__cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"]`;
+    const targetCell = viewport.querySelector<HTMLElement>(selector);
+    targetCell?.focus();
   }
 }

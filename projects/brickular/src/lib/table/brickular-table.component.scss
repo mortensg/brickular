@@ -183,6 +183,11 @@
   cursor: text;
 }
 
+.b-table__cell--active {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
 .b-table__header-cell--pinned-left,
 .b-table__cell--pinned-left {
   position: sticky;

@@ -133,6 +133,8 @@ describe('BrickTableComponent', () => {
     fixture.detectChanges();
 
     expect(document.activeElement).toBe(secondCell);
+    expect(firstCell.getAttribute('tabindex')).toBe('-1');
+    expect(secondCell.getAttribute('tabindex')).toBe('0');
   });
 
   it('focuses data cell on click without selecting row', () => {

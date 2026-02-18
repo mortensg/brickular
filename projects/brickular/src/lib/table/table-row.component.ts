@@ -20,12 +20,13 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
 
       @for (column of columns(); track column.id; let columnIndex = $index) {
         <div
-          [class]="cellClasses(column)"
+          [class]="cellClasses(column, columnIndex)"
           [style.width.px]="columnWidths()[column.id]"
           role="gridcell"
           [attr.data-nav-row]="visibleRowIndex()"
           [attr.data-nav-col]="columnIndex"
-          tabindex="0"
+          [tabindex]="cellTabIndex(columnIndex)"
+          (focus)="onCellFocus(columnIndex)"
           (keydown)="onCellKeydown($event, column.id, columnIndex)"
           (keydown.enter)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
           (dblclick)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
@@ -50,6 +51,7 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
 export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly row = input.required<BrickTableRow<T>>();
   readonly visibleRowIndex = input(0);
+  readonly activeCell = input<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
   readonly columns = input<readonly BrickTableColumnDef<T>[]>([]);
   readonly columnWidths = input<Record<string, number>>({});
   readonly selectedIndices = input<readonly number[]>([]);
@@ -60,6 +62,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly commitCellEdit = output<{ row: T; rowIndex: number; columnId: string; nextValue: string }>();
   readonly cancelEdit = output<void>();
   readonly cellKeydown = output<{ rowIndex: number; columnId: string; columnIndex: number; key: string }>();
+  readonly cellFocus = output<{ rowIndex: number; columnIndex: number }>();
 
   protected isRowSelected(): boolean {
     return this.selectedIndices().includes(this.row().sourceIndex);
@@ -74,13 +77,14 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     return engineDisplayValue(column, row);
   }
 
-  protected cellClasses(column: BrickTableColumnDef<T>): string {
+  protected cellClasses(column: BrickTableColumnDef<T>, columnIndex: number): string {
     return [
       tableBodyCellVariants({
         editable: column.editable === true,
         selected: this.isRowSelected(),
         pinned: toPinVariant(column.pinned),
       }),
+      this.isActiveCell(columnIndex) ? 'b-table__cell--active' : '',
       this.resolveCustomCellClass(column),
     ]
       .filter(Boolean)
@@ -112,6 +116,22 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
       columnIndex,
       key: event.key,
     });
+  }
+
+  protected cellTabIndex(columnIndex: number): number {
+    return this.isActiveCell(columnIndex) ? 0 : -1;
+  }
+
+  protected onCellFocus(columnIndex: number): void {
+    this.cellFocus.emit({
+      rowIndex: this.visibleRowIndex(),
+      columnIndex,
+    });
+  }
+
+  private isActiveCell(columnIndex: number): boolean {
+    const active = this.activeCell();
+    return active.rowIndex === this.visibleRowIndex() && active.columnIndex === columnIndex;
   }
 
   private resolveCustomCellClass(column: BrickTableColumnDef<T>): string {
