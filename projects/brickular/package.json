@@ -1,6 +1,6 @@
 {
   "name": "brickular",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Brickular Angular component library",
   "keywords": ["angular", "component-library", "table", "ui"],
   "repository": {
