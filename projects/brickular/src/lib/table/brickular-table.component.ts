@@ -50,25 +50,20 @@ import {
             (input)="onQuickFilterInput($event)"
           />
         </label>
-        <label class="b-table__toolbar-pagesize">
-          <span>Rows</span>
-          <select [value]="pageSize()" (change)="onPageSizeChange($event)">
-            @for (size of pageSizeOptions(); track size) {
-              <option [value]="size">{{ size }}</option>
-            }
-          </select>
-        </label>
+        @if (paginationEnabled()) {
+          <label class="b-table__toolbar-pagesize">
+            <span>Rows</span>
+            <select [value]="pageSize()" (change)="onPageSizeChange($event)">
+              @for (size of pageSizeOptions(); track size) {
+                <option [value]="size">{{ size }}</option>
+              }
+            </select>
+          </label>
+        }
       </header>
 
       <div class="b-table__scroll-shell">
-        <div
-          #viewport
-          class="b-table__viewport"
-          role="grid"
-          [attr.aria-rowcount]="filteredRows().length"
-          [style.--b-row-height.px]="rowHeight()"
-          (scroll)="onViewportScroll($event)"
-        >
+        <div #headScroller class="b-table__head-scroller">
           <div class="b-table__header-row" role="row">
             <div class="b-table__select-cell" role="columnheader">
               <input
@@ -85,7 +80,7 @@ import {
                 [class.b-table__header-cell--sortable]="column.sortable !== false"
                 [class.b-table__header-cell--pinned-left]="column.pinned === 'left'"
                 [class.b-table__header-cell--pinned-right]="column.pinned === 'right'"
-                [style.width.px]="columnWidths()[column.id]"
+                [style.width.px]="resolvedColumnWidths()[column.id]"
                 [style.minWidth.px]="column.minWidth ?? 80"
                 [style.maxWidth.px]="column.maxWidth ?? 600"
                 [title]="column.tooltip ?? column.header"
@@ -125,35 +120,49 @@ import {
           <div class="b-table__filter-row" role="row">
             <div class="b-table__select-cell b-table__select-cell--empty"></div>
             @for (column of renderedColumns(); track column.id) {
-              <div class="b-table__filter-cell">
+              <div
+                class="b-table__filter-cell"
+                [style.width.px]="resolvedColumnWidths()[column.id]"
+                [style.minWidth.px]="column.minWidth ?? 80"
+                [style.maxWidth.px]="column.maxWidth ?? 600"
+              >
                 @if (column.filterable !== false) {
                   @if (resolveFilterType(column) === 'number') {
-                    <input
-                      type="number"
-                      [value]="numberFilterMin(column.id)"
-                      placeholder="Min"
-                      (input)="setNumberFilter(column.id, 'min', $event)"
-                    />
-                    <input
-                      type="number"
-                      [value]="numberFilterMax(column.id)"
-                      placeholder="Max"
-                      (input)="setNumberFilter(column.id, 'max', $event)"
-                    />
+                    <div class="b-table__filter-range">
+                      <input
+                        type="number"
+                        class="b-table__filter-input"
+                        [value]="numberFilterMin(column.id)"
+                        placeholder="Min"
+                        (input)="setNumberFilter(column.id, 'min', $event)"
+                      />
+                      <input
+                        type="number"
+                        class="b-table__filter-input"
+                        [value]="numberFilterMax(column.id)"
+                        placeholder="Max"
+                        (input)="setNumberFilter(column.id, 'max', $event)"
+                      />
+                    </div>
                   } @else if (resolveFilterType(column) === 'date') {
-                    <input
-                      type="date"
-                      [value]="dateFilterStart(column.id)"
-                      (input)="setDateFilter(column.id, 'start', $event)"
-                    />
-                    <input
-                      type="date"
-                      [value]="dateFilterEnd(column.id)"
-                      (input)="setDateFilter(column.id, 'end', $event)"
-                    />
+                    <div class="b-table__filter-range">
+                      <input
+                        type="date"
+                        class="b-table__filter-input"
+                        [value]="dateFilterStart(column.id)"
+                        (input)="setDateFilter(column.id, 'start', $event)"
+                      />
+                      <input
+                        type="date"
+                        class="b-table__filter-input"
+                        [value]="dateFilterEnd(column.id)"
+                        (input)="setDateFilter(column.id, 'end', $event)"
+                      />
+                    </div>
                   } @else {
                     <input
                       type="text"
+                      class="b-table__filter-input"
                       [value]="textFilter(column.id)"
                       placeholder="Filter"
                       (input)="setTextFilter(column.id, $event)"
@@ -163,9 +172,18 @@ import {
               </div>
             }
           </div>
+        </div>
 
-          <div class="b-table__spacer" [style.height.px]="totalHeightPx() + headerOffsetPx()"></div>
-          <div class="b-table__window" [style.transform]="'translateY(' + (translateYPx() + headerOffsetPx()) + 'px)'">
+        <div
+          #viewport
+          class="b-table__viewport"
+          role="grid"
+          [attr.aria-rowcount]="filteredRows().length"
+          [style.--b-row-height.px]="rowHeight()"
+          (scroll)="onViewportScroll($event)"
+        >
+          <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
+          <div class="b-table__window" [style.transform]="'translateY(' + translateYPx() + 'px)'">
 
             @for (row of visibleRows(); track row.sourceIndex) {
               <div class="b-table__row" role="row">
@@ -186,7 +204,7 @@ import {
                     [class.b-table__cell--pinned-left]="column.pinned === 'left'"
                     [class.b-table__cell--pinned-right]="column.pinned === 'right'"
                     [class]="cellClass(column, row.source, row.sourceIndex)"
-                    [style.width.px]="columnWidths()[column.id]"
+                    [style.width.px]="resolvedColumnWidths()[column.id]"
                     role="gridcell"
                     tabindex="0"
                     (keydown)="onCellKeydown($event, row.sourceIndex, column.id)"
@@ -211,19 +229,21 @@ import {
         </div>
       </div>
 
-      <footer class="b-table__footer">
-        <button type="button" (click)="goToPage(pageIndex() - 1)" [disabled]="pageIndex() <= 0">
-          Previous
-        </button>
-        <span>Page {{ pageIndex() + 1 }} / {{ totalPages() }}</span>
-        <button
-          type="button"
-          (click)="goToPage(pageIndex() + 1)"
-          [disabled]="pageIndex() + 1 >= totalPages()"
-        >
-          Next
-        </button>
-      </footer>
+      @if (paginationEnabled()) {
+        <footer class="b-table__footer">
+          <button type="button" (click)="goToPage(pageIndex() - 1)" [disabled]="pageIndex() <= 0">
+            Previous
+          </button>
+          <span>Page {{ pageIndex() + 1 }} / {{ totalPages() }}</span>
+          <button
+            type="button"
+            (click)="goToPage(pageIndex() + 1)"
+            [disabled]="pageIndex() + 1 >= totalPages()"
+          >
+            Next
+          </button>
+        </footer>
+      }
     </section>
   `,
   styleUrl: './brickular-table.component.scss',
@@ -231,11 +251,13 @@ import {
 })
 export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly viewport = viewChild<ElementRef<HTMLDivElement>>('viewport');
+  readonly headScroller = viewChild<ElementRef<HTMLDivElement>>('headScroller');
 
   readonly data = input<readonly T[]>([]);
   readonly columnDefs = input<readonly BrickTableColumnDef<T>[]>([]);
   readonly pageSizeOptions = input<readonly number[]>([10, 25, 50, 100]);
   readonly defaultPageSize = input(25);
+  readonly paginationEnabled = input(true);
   readonly rowHeight = input(40);
   readonly quickFilterPlaceholder = input('Search table...');
   readonly selectionMode = input<'single' | 'multiple'>('multiple');
@@ -261,6 +283,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly resizeEndedAt = signal(0);
   private readonly scrollTop = signal(0);
   private readonly viewportHeight = signal(540);
+  private readonly viewportWidth = signal(0);
   private readonly lastSelectedIndex = signal<number | null>(null);
 
   protected readonly renderedColumns = computed(() => {
@@ -276,11 +299,15 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   });
 
   protected readonly pagedRows = computed(() => {
+    if (!this.paginationEnabled()) {
+      return this.sortedRows();
+    }
     return paginateRows(this.sortedRows(), this.pageIndex(), this.pageSize());
   });
 
-  protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.sortedRows().length / this.pageSize())));
-  protected readonly headerOffsetPx = computed(() => this.rowHeight() * 2);
+  protected readonly totalPages = computed(() =>
+    this.paginationEnabled() ? Math.max(1, Math.ceil(this.sortedRows().length / this.pageSize())) : 1,
+  );
   protected readonly totalHeightPx = computed(() => this.pagedRows().length * this.rowHeight());
   protected readonly visibleRange = computed(() => {
     return engineVisibleRange(this.scrollTop(), this.viewportHeight(), this.rowHeight(), this.pagedRows().length);
@@ -289,6 +316,42 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly visibleRows = computed(() => {
     const range = this.visibleRange();
     return this.pagedRows().slice(range.start, range.end);
+  });
+  protected readonly resolvedColumnWidths = computed<Record<string, number>>(() => {
+    const columns = this.renderedColumns();
+    const widths = this.columnWidths();
+    const viewportWidth = this.viewportWidth();
+    if (columns.length === 0 || viewportWidth <= 0) {
+      return widths;
+    }
+
+    const selectionWidthPx = 36;
+    const baseTotal = columns.reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
+    const extra = viewportWidth - (baseTotal + selectionWidthPx);
+    if (extra <= 0) {
+      return widths;
+    }
+
+    const flexColumns = columns.filter((column) => (column.flex ?? 0) > 0);
+    const growColumns = flexColumns.length > 0 ? flexColumns : columns;
+    const totalFlex = growColumns.reduce((sum, column) => sum + (column.flex ?? 1), 0);
+    if (totalFlex <= 0) {
+      return widths;
+    }
+
+    return columns.reduce<Record<string, number>>((acc, column) => {
+      const current = widths[column.id] ?? column.width ?? 160;
+      if (!growColumns.includes(column)) {
+        acc[column.id] = current;
+        return acc;
+      }
+      const ratio = (column.flex ?? 1) / totalFlex;
+      const grown = current + extra * ratio;
+      const min = column.minWidth ?? 80;
+      const max = column.maxWidth ?? 600;
+      acc[column.id] = Math.min(max, Math.max(min, grown));
+      return acc;
+    }, {});
   });
 
   protected readonly allVisibleSelected = computed(() => {
@@ -328,6 +391,21 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           return acc;
         }, {}),
       );
+    });
+
+    effect(() => {
+      const viewportRef = this.viewport();
+      if (!viewportRef) {
+        return;
+      }
+      const height = viewportRef.nativeElement.clientHeight;
+      const width = viewportRef.nativeElement.clientWidth;
+      if (height > 0) {
+        this.viewportHeight.set(height);
+      }
+      if (width > 0) {
+        this.viewportWidth.set(width);
+      }
     });
 
     effect(() => {
@@ -502,7 +580,16 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected onViewportScroll(event: Event): void {
     const viewport = event.target as HTMLDivElement;
     this.scrollTop.set(viewport.scrollTop);
-    this.viewportHeight.set(viewport.clientHeight);
+    if (viewport.clientHeight > 0) {
+      this.viewportHeight.set(viewport.clientHeight);
+    }
+    if (viewport.clientWidth > 0) {
+      this.viewportWidth.set(viewport.clientWidth);
+    }
+    const headScroller = this.headScroller();
+    if (headScroller) {
+      headScroller.nativeElement.scrollLeft = viewport.scrollLeft;
+    }
   }
 
   protected startResize(column: BrickTableColumnDef<T>, event: MouseEvent): void {

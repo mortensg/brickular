@@ -26,7 +26,7 @@ import { createTableRows, defaultColumns } from '../table-demo-data';
       </div>
 
       <div [style.--b-row-height.px]="rowHeight()">
-        <b-table [data]="rows()" [columnDefs]="columns" [defaultPageSize]="50" [rowHeight]="rowHeight()" />
+        <b-table [data]="rows()" [columnDefs]="columns" [paginationEnabled]="false" [rowHeight]="rowHeight()" />
       </div>
     </section>
   `,
