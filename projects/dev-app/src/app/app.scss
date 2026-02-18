@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+
+.demo-shell {
+  min-height: 100vh;
+  padding: 1.5rem;
+  background: var(--b-surface, #ffffff);
+  color: var(--b-on-surface, #111827);
+  font-family: Inter, 'Segoe UI', sans-serif;
+}
+
+.demo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.demo-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.demo-header p {
+  margin: 0.35rem 0 0;
+}
+
+.demo-header button {
+  border: 1px solid var(--b-border, #d1d5db);
+  background: transparent;
+  color: inherit;
+  border-radius: 0.35rem;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}

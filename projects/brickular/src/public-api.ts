@@ -1,5 +1,1 @@
-/*
- * Public API Surface of brickular
- */
-
-export * from './lib/brickular';
+export * from './lib/table';

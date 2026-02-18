@@ -1,59 +1,58 @@
 # Brickular
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.8.
+Brickular is an Angular 20 component library workspace with a first release focused on a typed, high-performance data table.
 
-## Development server
+## Workspace apps and library
 
-To start a local development server, run:
+- `projects/brickular`: publishable library package (`brickular`).
+- `projects/dev-app`: local playground for rapid component development.
+- `projects/brickular-docs`: documentation and demo application for GitHub Pages.
 
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Quick start
 
 ```bash
-ng generate component component-name
+npm install
+npm run start:dev
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Use `npm run start:docs` to run the docs site locally.
+
+## Build targets
 
 ```bash
-ng generate --help
+# Build publishable library
+npm run build:lib
+
+# Build docs app for GitHub Pages
+npm run build:docs
 ```
 
-## Building
-
-To build the project run:
+## Installing in another Angular project
 
 ```bash
-ng build
+npm install brickular
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Then import standalone components:
 
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
+```ts
+import { BrickTableComponent } from 'brickular';
 ```
 
-## Running end-to-end tests
+## Table features in this version
 
-For end-to-end (e2e) testing, run:
+- Typed column definitions (`BrickTableColumnDef<T>`).
+- Single and multi-column sorting.
+- Text/number/date filters with quick filter search.
+- Client-side pagination.
+- Single or multi-row selection.
+- Inline cell editing events.
+- Row virtualization.
+- Column reordering, pinning, and resizing.
 
-```bash
-ng e2e
-```
+## Theme tokens
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Brickular ships CSS variable themes in `styles/themes.css` from the built package:
 
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- `.brickular-theme-light`
+- `.brickular-theme-dark`

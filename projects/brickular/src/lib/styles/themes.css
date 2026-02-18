@@ -1,0 +1,17 @@
+.brickular-theme-light {
+  --b-surface: #ffffff;
+  --b-on-surface: #111827;
+  --b-border: #d1d5db;
+  --b-header-bg: #f3f4f6;
+  --b-selected-bg: #dbeafe;
+  --b-hover-bg: #f9fafb;
+}
+
+.brickular-theme-dark {
+  --b-surface: #111827;
+  --b-on-surface: #f9fafb;
+  --b-border: #374151;
+  --b-header-bg: #1f2937;
+  --b-selected-bg: #1d4ed8;
+  --b-hover-bg: #1f2937;
+}

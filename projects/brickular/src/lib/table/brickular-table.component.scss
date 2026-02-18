@@ -1,0 +1,208 @@
+:host {
+  display: block;
+}
+
+.b-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.b-table {
+  --b-table-bg: var(--b-surface, #ffffff);
+  --b-table-fg: var(--b-on-surface, #111827);
+  --b-table-border: var(--b-border, #d1d5db);
+  --b-table-header-bg: var(--b-header-bg, #f3f4f6);
+  --b-table-selected-bg: var(--b-selected-bg, #dbeafe);
+  --b-table-hover-bg: var(--b-hover-bg, #f9fafb);
+  --b-row-height: 40px;
+
+  display: grid;
+  gap: 0.75rem;
+  color: var(--b-table-fg);
+}
+
+.b-table__toolbar,
+.b-table__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.b-table__toolbar-search input {
+  min-width: 240px;
+}
+
+.b-table__toolbar-pagesize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.b-table__toolbar input,
+.b-table__toolbar select,
+.b-table__filter-cell input,
+.b-table__editor {
+  border: 1px solid var(--b-table-border);
+  border-radius: 0.35rem;
+  background: var(--b-table-bg);
+  color: var(--b-table-fg);
+  padding: 0.35rem 0.45rem;
+}
+
+.b-table__scroll-shell {
+  border: 1px solid var(--b-table-border);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: var(--b-table-bg);
+}
+
+.b-table__viewport {
+  position: relative;
+  overflow: auto;
+  max-height: 560px;
+}
+
+.b-table__spacer {
+  width: 1px;
+  opacity: 0;
+}
+
+.b-table__window {
+  position: absolute;
+  inset: 0 0 auto;
+}
+
+.b-table__header-row,
+.b-table__filter-row,
+.b-table__row {
+  display: flex;
+  min-width: max-content;
+}
+
+.b-table__header-row,
+.b-table__filter-row {
+  position: sticky;
+  z-index: 10;
+  background: var(--b-table-header-bg);
+}
+
+.b-table__header-row {
+  top: 0;
+}
+
+.b-table__filter-row {
+  top: var(--b-row-height);
+  z-index: 9;
+}
+
+.b-table__header-cell,
+.b-table__cell,
+.b-table__filter-cell,
+.b-table__select-cell {
+  border-right: 1px solid var(--b-table-border);
+  border-bottom: 1px solid var(--b-table-border);
+  min-height: var(--b-row-height);
+  box-sizing: border-box;
+}
+
+.b-table__header-cell,
+.b-table__cell,
+.b-table__filter-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.b-table__header-cell {
+  font-weight: 600;
+  user-select: none;
+  position: relative;
+}
+
+.b-table__header-cell--sortable {
+  cursor: pointer;
+}
+
+.b-table__resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 7px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.b-table__pin-button {
+  border: 1px solid var(--b-table-border);
+  border-radius: 0.3rem;
+  background: transparent;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.75rem;
+}
+
+.b-table__sort-indicator {
+  margin-left: auto;
+  min-width: 0.9rem;
+}
+
+.b-table__select-cell {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  display: grid;
+  place-items: center;
+  position: sticky;
+  left: 0;
+  z-index: 11;
+  background: var(--b-table-bg);
+}
+
+.b-table__select-cell--empty {
+  background: var(--b-table-header-bg);
+}
+
+.b-table__cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
+.b-table__row:hover .b-table__cell {
+  background: var(--b-table-hover-bg);
+}
+
+.b-table__cell--editable {
+  cursor: text;
+}
+
+.b-table__header-cell--pinned-left,
+.b-table__cell--pinned-left {
+  position: sticky;
+  left: 2.25rem;
+  z-index: 8;
+  background: var(--b-table-bg);
+}
+
+.b-table__header-cell--pinned-right,
+.b-table__cell--pinned-right {
+  position: sticky;
+  right: 0;
+  z-index: 8;
+  background: var(--b-table-bg);
+}
+
+.b-table__header-cell:focus-visible,
+.b-table__cell:focus-visible,
+.b-table__editor:focus-visible,
+.b-table__toolbar input:focus-visible,
+.b-table__toolbar select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}

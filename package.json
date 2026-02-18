@@ -1,10 +1,16 @@
 {
-  "name": "brickular",
+  "name": "brickular-workspace",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
+    "start": "ng serve dev-app",
+    "start:dev": "ng build brickular --watch --configuration development & ng serve dev-app",
+    "start:docs": "ng build brickular --watch --configuration development & ng serve brickular-docs",
+    "build": "ng build brickular",
+    "build:lib": "ng build brickular",
+    "build:dev": "ng build dev-app",
+    "build:docs": "ng build brickular && ng build brickular-docs --configuration production --base-href /brickular/",
+    "build:all": "npm run build:lib && npm run build:dev && npm run build:docs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

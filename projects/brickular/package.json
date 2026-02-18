@@ -1,6 +1,14 @@
 {
   "name": "brickular",
   "version": "0.0.1",
+  "description": "Brickular Angular component library",
+  "keywords": ["angular", "component-library", "table", "ui"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mortensg/brickular.git"
+  },
+  "license": "MIT",
+  "style": "./styles/themes.css",
   "peerDependencies": {
     "@angular/common": "^20.3.0",
     "@angular/core": "^20.3.0"
