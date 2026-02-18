@@ -69,100 +69,103 @@ import {
           [style.--b-row-height.px]="rowHeight()"
           (scroll)="onViewportScroll($event)"
         >
-          <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
-          <div class="b-table__window" [style.transform]="'translateY(' + translateYPx() + 'px)'">
-            <div class="b-table__header-row" role="row">
-              <div class="b-table__select-cell" role="columnheader">
-                <input
-                  type="checkbox"
-                  [checked]="allVisibleSelected()"
-                  [indeterminate]="someVisibleSelected()"
-                  (change)="toggleSelectVisibleRows($event)"
-                  aria-label="Select visible rows"
-                />
-              </div>
-              @for (column of renderedColumns(); track column.id) {
-                <div
-                  class="b-table__header-cell"
-                  [class.b-table__header-cell--sortable]="column.sortable !== false"
-                  [class.b-table__header-cell--pinned-left]="column.pinned === 'left'"
-                  [class.b-table__header-cell--pinned-right]="column.pinned === 'right'"
-                  [style.width.px]="columnWidths()[column.id]"
-                  [style.minWidth.px]="column.minWidth ?? 80"
-                  [style.maxWidth.px]="column.maxWidth ?? 600"
-                  [title]="column.tooltip ?? column.header"
-                  draggable="true"
-                  role="columnheader"
-                  tabindex="0"
-                  (click)="toggleSort(column, $event.shiftKey)"
-                  (dragstart)="onHeaderDragStart(column.id, $event)"
-                  (dragover)="onHeaderDragOver($event)"
-                  (drop)="onHeaderDrop(column.id)"
+          <div class="b-table__header-row" role="row">
+            <div class="b-table__select-cell" role="columnheader">
+              <input
+                type="checkbox"
+                [checked]="allVisibleSelected()"
+                [indeterminate]="someVisibleSelected()"
+                (change)="toggleSelectVisibleRows($event)"
+                aria-label="Select visible rows"
+              />
+            </div>
+            @for (column of renderedColumns(); track column.id) {
+              <div
+                class="b-table__header-cell"
+                [class.b-table__header-cell--sortable]="column.sortable !== false"
+                [class.b-table__header-cell--pinned-left]="column.pinned === 'left'"
+                [class.b-table__header-cell--pinned-right]="column.pinned === 'right'"
+                [style.width.px]="columnWidths()[column.id]"
+                [style.minWidth.px]="column.minWidth ?? 80"
+                [style.maxWidth.px]="column.maxWidth ?? 600"
+                [title]="column.tooltip ?? column.header"
+                draggable="true"
+                role="columnheader"
+                tabindex="0"
+                (click)="toggleSort(column, $event.shiftKey)"
+                (dragstart)="onHeaderDragStart(column.id, $event)"
+                (dragover)="onHeaderDragOver($event)"
+                (drop)="onHeaderDrop(column.id)"
+              >
+                <span>{{ column.header }}</span>
+                <button
+                  type="button"
+                  class="b-table__pin-button"
+                  [disabled]="column.pinnable === false"
+                  (click)="cyclePinned(column.id, $event)"
+                  [attr.aria-label]="'Pin column ' + column.header"
                 >
-                  <span>{{ column.header }}</span>
+                  {{ pinnedLabel(column.pinned) }}
+                </button>
+                <span class="b-table__sort-indicator">{{ sortIndicator(column.id) }}</span>
+                @if (column.resizable !== false) {
                   <button
                     type="button"
-                    class="b-table__pin-button"
-                    [disabled]="column.pinnable === false"
-                    (click)="cyclePinned(column.id, $event)"
-                    [attr.aria-label]="'Pin column ' + column.header"
-                  >
-                    {{ pinnedLabel(column.pinned) }}
-                  </button>
-                  <span class="b-table__sort-indicator">{{ sortIndicator(column.id) }}</span>
-                  @if (column.resizable !== false) {
-                    <button
-                      type="button"
-                      class="b-table__resize-handle"
-                      (mousedown)="startResize(column, $event)"
-                      [attr.aria-label]="'Resize column ' + column.header"
-                    ></button>
-                  }
-                </div>
-              }
-            </div>
+                    class="b-table__resize-handle"
+                    draggable="false"
+                    (dragstart)="$event.preventDefault(); $event.stopPropagation()"
+                    (mousedown)="startResize(column, $event)"
+                    [attr.aria-label]="'Resize column ' + column.header"
+                  ></button>
+                }
+              </div>
+            }
+          </div>
 
-            <div class="b-table__filter-row" role="row">
-              <div class="b-table__select-cell b-table__select-cell--empty"></div>
-              @for (column of renderedColumns(); track column.id) {
-                <div class="b-table__filter-cell">
-                  @if (column.filterable !== false) {
-                    @if (resolveFilterType(column) === 'number') {
-                      <input
-                        type="number"
-                        [value]="numberFilterMin(column.id)"
-                        placeholder="Min"
-                        (input)="setNumberFilter(column.id, 'min', $event)"
-                      />
-                      <input
-                        type="number"
-                        [value]="numberFilterMax(column.id)"
-                        placeholder="Max"
-                        (input)="setNumberFilter(column.id, 'max', $event)"
-                      />
-                    } @else if (resolveFilterType(column) === 'date') {
-                      <input
-                        type="date"
-                        [value]="dateFilterStart(column.id)"
-                        (input)="setDateFilter(column.id, 'start', $event)"
-                      />
-                      <input
-                        type="date"
-                        [value]="dateFilterEnd(column.id)"
-                        (input)="setDateFilter(column.id, 'end', $event)"
-                      />
-                    } @else {
-                      <input
-                        type="text"
-                        [value]="textFilter(column.id)"
-                        placeholder="Filter"
-                        (input)="setTextFilter(column.id, $event)"
-                      />
-                    }
+          <div class="b-table__filter-row" role="row">
+            <div class="b-table__select-cell b-table__select-cell--empty"></div>
+            @for (column of renderedColumns(); track column.id) {
+              <div class="b-table__filter-cell">
+                @if (column.filterable !== false) {
+                  @if (resolveFilterType(column) === 'number') {
+                    <input
+                      type="number"
+                      [value]="numberFilterMin(column.id)"
+                      placeholder="Min"
+                      (input)="setNumberFilter(column.id, 'min', $event)"
+                    />
+                    <input
+                      type="number"
+                      [value]="numberFilterMax(column.id)"
+                      placeholder="Max"
+                      (input)="setNumberFilter(column.id, 'max', $event)"
+                    />
+                  } @else if (resolveFilterType(column) === 'date') {
+                    <input
+                      type="date"
+                      [value]="dateFilterStart(column.id)"
+                      (input)="setDateFilter(column.id, 'start', $event)"
+                    />
+                    <input
+                      type="date"
+                      [value]="dateFilterEnd(column.id)"
+                      (input)="setDateFilter(column.id, 'end', $event)"
+                    />
+                  } @else {
+                    <input
+                      type="text"
+                      [value]="textFilter(column.id)"
+                      placeholder="Filter"
+                      (input)="setTextFilter(column.id, $event)"
+                    />
                   }
-                </div>
-              }
-            </div>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="b-table__spacer" [style.height.px]="totalHeightPx() + headerOffsetPx()"></div>
+          <div class="b-table__window" [style.transform]="'translateY(' + (translateYPx() + headerOffsetPx()) + 'px)'">
 
             @for (row of visibleRows(); track row.sourceIndex) {
               <div class="b-table__row" role="row">
@@ -254,6 +257,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
   protected readonly columnWidths = signal<Record<string, number>>({});
   private readonly dragColumnId = signal<string | null>(null);
+  private readonly isResizing = signal(false);
+  private readonly resizeEndedAt = signal(0);
   private readonly scrollTop = signal(0);
   private readonly viewportHeight = signal(540);
   private readonly lastSelectedIndex = signal<number | null>(null);
@@ -275,6 +280,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   });
 
   protected readonly totalPages = computed(() => Math.max(1, Math.ceil(this.sortedRows().length / this.pageSize())));
+  protected readonly headerOffsetPx = computed(() => this.rowHeight() * 2);
   protected readonly totalHeightPx = computed(() => this.pagedRows().length * this.rowHeight());
   protected readonly visibleRange = computed(() => {
     return engineVisibleRange(this.scrollTop(), this.viewportHeight(), this.rowHeight(), this.pagedRows().length);
@@ -357,6 +363,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected toggleSort(column: BrickTableColumnDef<T>, addToSort: boolean): void {
+    if (Date.now() - this.resizeEndedAt() < 160) {
+      return;
+    }
     if (column.sortable === false) {
       return;
     }
@@ -497,7 +506,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected startResize(column: BrickTableColumnDef<T>, event: MouseEvent): void {
+    event.preventDefault();
     event.stopPropagation();
+    this.isResizing.set(true);
     const startX = event.clientX;
     const startWidth = this.columnWidths()[column.id] ?? column.width ?? 160;
     const minWidth = column.minWidth ?? 80;
@@ -510,12 +521,18 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     const onMouseUp = (): void => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      this.isResizing.set(false);
+      this.resizeEndedAt.set(Date.now());
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   }
 
   protected onHeaderDragStart(columnId: string, event: DragEvent): void {
+    if (this.isResizing()) {
+      event.preventDefault();
+      return;
+    }
     this.dragColumnId.set(columnId);
     event.dataTransfer?.setData('text/plain', columnId);
     event.dataTransfer!.effectAllowed = 'move';
