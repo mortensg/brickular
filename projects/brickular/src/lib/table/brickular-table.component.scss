@@ -428,10 +428,9 @@
 
 /* Checkbox header: match header row background and stacking */
 .b-table__header-row .b-table__header-select-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.5rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
   background: var(--b-table-header-bg);
 }
 

@@ -967,6 +967,22 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       next.splice(targetIndex, 0, sourceColumnId);
       return next;
     });
+
+    const columns = this.renderedColumns();
+    const sourceColumn = columns.find((column) => column.id === sourceColumnId);
+    const targetColumn = columns.find((column) => column.id === targetColumnId);
+
+    if (sourceColumn && targetColumn) {
+      const targetPinned = targetColumn.pinned;
+      const currentPinned = this.pinnedColumns()[sourceColumnId];
+      if (targetPinned !== currentPinned) {
+        this.pinnedColumns.update((current) => ({
+          ...current,
+          [sourceColumnId]: targetPinned,
+        }));
+      }
+    }
+
     this.dragColumnId.set(null);
   }
 
