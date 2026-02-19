@@ -267,10 +267,6 @@
   overflow: hidden;
 }
 
-.b-table__pane--left {
-  /* width set in template */
-}
-
 .b-table__pane--center {
   flex: 0 0 auto;
   min-width: 0;
@@ -435,27 +431,6 @@
   background: var(--b-table-header-bg);
 }
 
-/* Drag placeholder indicator in header */
-.b-table__header-cell--drag-placeholder-before::before,
-.b-table__header-cell--drag-placeholder-after::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: var(--b-drag-placeholder-width, 2px);
-  background: #2563eb;
-  pointer-events: none;
-}
-
-.b-table__header-cell--drag-placeholder-before::before {
-  left: 0;
-  transform: translateX(calc(-1 * var(--b-drag-placeholder-width, 2px)));
-}
-
-.b-table__header-cell--drag-placeholder-after::before {
-  right: 0;
-}
-
 /* Drag slot: empty column placeholder during reorder (header, filter row, body) */
 .b-table__header-cell--drag-slot,
 .b-table__filter-cell--drag-slot {
@@ -597,4 +572,10 @@
 .b-table__toolbar select:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: -2px;
+}
+
+/* Header checkbox wrapper should not show active outline. */
+.b-table__header-select-cell:focus,
+.b-table__header-select-cell:focus-visible {
+  outline: none;
 }

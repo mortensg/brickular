@@ -12,7 +12,6 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
       @for (column of columns(); track column.id) {
         @if (column.id === BRICK_SELECT_COLUMN_ID) {
           <div
-            [class]="headerCellClass(column)"
             class="b-table__select-cell b-table__header-select-cell"
             [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
             [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
@@ -20,11 +19,15 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
             [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
             role="columnheader"
+            [attr.data-column-id]="column.id"
+            [style.position]="column.pinned ? 'sticky' : null"
+            [style.zIndex]="column.pinned ? 9 : null"
             [style.width.px]="columnWidths()[column.id]"
-            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
+            [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+            [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
             draggable="true"
             tabindex="0"
+            (click)="$event.preventDefault(); $event.stopPropagation()"
             (contextmenu)="onHeaderContextMenu($event, column)"
             (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
             (dragover)="onHeaderDragOver($event, column.id)"
@@ -49,8 +52,9 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
             [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
             [style.width.px]="columnWidths()[column.id]"
-            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
+            [attr.data-column-id]="column.id"
+            [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+            [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
             [style.minWidth.px]="column.minWidth ?? 80"
             [style.maxWidth.px]="column.maxWidth ?? 600"
             [title]="column.tooltip ?? column.header"
@@ -94,9 +98,12 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [class.b-table__filter-cell--right-boundary]="column.id === firstRightColumnId()"
             [class.b-table__filter-cell--drag-slot]="column.id === draggingColumnId()"
             role="gridcell"
+            [attr.data-column-id]="column.id"
+            [style.position]="column.pinned ? 'sticky' : null"
+            [style.zIndex]="column.pinned ? 9 : null"
             [style.width.px]="columnWidths()[column.id]"
-            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
+            [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+            [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
           ></div>
         } @else {
         <div
@@ -107,9 +114,10 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
           [class.b-table__filter-cell--left-boundary]="column.id === lastLeftColumnId()"
           [class.b-table__filter-cell--right-boundary]="column.id === firstRightColumnId()"
           [class.b-table__filter-cell--drag-slot]="column.id === draggingColumnId()"
+          [attr.data-column-id]="column.id"
           [style.width.px]="columnWidths()[column.id]"
-          [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-          [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
+          [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+          [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
           [style.minWidth.px]="column.minWidth ?? 80"
           [style.maxWidth.px]="column.maxWidth ?? 600"
         >
@@ -197,9 +205,6 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly numberFilterChange = output<{ columnId: string; edge: 'min' | 'max'; value?: number }>();
   readonly dateFilterChange = output<{ columnId: string; edge: 'start' | 'end'; value?: string }>();
 
-  private dragOverColumnId: string | null = null;
-  private dragOverBefore = true;
-
   protected headerCellClass(column: BrickTableColumnDef<T>): string {
     return [
       'flex items-center gap-1.5 px-2 py-1.5',
@@ -236,8 +241,6 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     const rect = element.getBoundingClientRect();
     const offsetX = event.clientX - rect.left;
     const before = offsetX < rect.width / 2;
-    this.dragOverColumnId = targetColumnId;
-    this.dragOverBefore = before;
     this.headerDragTarget.emit({ targetColumnId, before });
   }
 
@@ -251,29 +254,7 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     this.clearDragPlaceholder();
   }
 
-  protected dragPlaceholderWidthPx(columnId: string): number | null {
-    if (!this.isDragPlaceholderBefore(columnId) && !this.isDragPlaceholderAfter(columnId)) {
-      return null;
-    }
-    const draggingId = this.draggingColumnId();
-    if (!draggingId) {
-      return null;
-    }
-    const width = this.columnWidths()[draggingId];
-    return typeof width === 'number' && width > 0 ? width : null;
-  }
-
-  protected isDragPlaceholderBefore(columnId: string): boolean {
-    return this.dragOverColumnId === columnId && this.dragOverBefore;
-  }
-
-  protected isDragPlaceholderAfter(columnId: string): boolean {
-    return this.dragOverColumnId === columnId && !this.dragOverBefore;
-  }
-
   private clearDragPlaceholder(): void {
-    this.dragOverColumnId = null;
-    this.dragOverBefore = true;
     this.headerDragTarget.emit(null);
   }
 

@@ -39,6 +39,7 @@ import {
   sortRows,
   visibleRange as engineVisibleRange,
 } from './table-engine';
+import { ColumnReorderAnimator } from './column-reorder-animator';
 
 @Component({
   selector: 'b-table',
@@ -332,6 +333,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly headerMenuColumnId = signal<string | null>(null);
   protected readonly headerMenuPosition = signal<{ x: number; y: number }>({ x: 0, y: 0 });
   protected readonly headerMenuVisible = signal(false);
+  private columnReorderAnimator: ColumnReorderAnimator | null = null;
   /** Tracks last column set we initialized from, so we only reset order/pin/width when columns actually change. */
   private readonly lastInitColumnKey = signal<string>('');
 
@@ -379,12 +381,17 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (!draggedCol) {
       return cols;
     }
+    const targetColumn = without.find((c) => c.id === target.targetColumnId);
     const targetIdx = without.findIndex((c) => c.id === target.targetColumnId);
     if (targetIdx === -1) {
       return cols;
     }
+    // Preview pin state as well so header/body panes stay aligned while dragging.
+    const previewDraggedColumn = targetColumn
+      ? { ...draggedCol, pinned: targetColumn.pinned }
+      : draggedCol;
     const insertAt = target.before ? targetIdx : targetIdx + 1;
-    return [...without.slice(0, insertAt), draggedCol, ...without.slice(insertAt)];
+    return [...without.slice(0, insertAt), previewDraggedColumn, ...without.slice(insertAt)];
   });
 
   protected readonly filteredRows = computed<readonly BrickTableRow<T>[]>(() => {
@@ -655,6 +662,26 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           observer.disconnect();
         });
       }
+    });
+
+    effect((onCleanup) => {
+      const head = this.headScroller()?.nativeElement;
+      const body = this.bodyContent()?.nativeElement;
+      if (!head || !body) {
+        return;
+      }
+      this.columnReorderAnimator = new ColumnReorderAnimator({
+        headElement: head,
+        bodyElement: body,
+        // Phase 1+2 default: animate visible rows but keep cap conservative.
+        maxAnimatedRows: 40,
+        durationMs: 220,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      });
+      onCleanup(() => {
+        this.columnReorderAnimator?.reset();
+        this.columnReorderAnimator = null;
+      });
     });
 
     effect(() => {
@@ -929,10 +956,37 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
   protected onHeaderDragEnd(): void {
     this.dragColumnId.set(null);
+    this.dragDropTarget.set(null);
+    this.columnReorderAnimator?.reset();
   }
 
   protected onHeaderDragTarget(hint: { targetColumnId: string; before: boolean } | null): void {
+    if (!this.dragColumnId()) {
+      this.dragDropTarget.set(null);
+      this.columnReorderAnimator?.reset();
+      return;
+    }
+    if (!hint) {
+      this.dragDropTarget.set(null);
+      this.columnReorderAnimator?.reset();
+      return;
+    }
+
+    const current = this.dragDropTarget();
+    if (
+      current &&
+      current.targetColumnId === hint.targetColumnId &&
+      current.before === hint.before
+    ) {
+      return;
+    }
+
+    this.columnReorderAnimator?.captureBefore();
     this.dragDropTarget.set(hint);
+
+    requestAnimationFrame(() => {
+      this.columnReorderAnimator?.animateAfter();
+    });
   }
 
   protected openHeaderContextMenu(columnId: string, x: number, y: number): void {
@@ -994,24 +1048,39 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
   protected onHeaderDrop(targetColumnId: string): void {
     const sourceColumnId = this.dragColumnId();
-    if (!sourceColumnId || sourceColumnId === targetColumnId) {
+    const hint = this.dragDropTarget();
+    if (!sourceColumnId) {
+      this.dragDropTarget.set(null);
+      this.dragColumnId.set(null);
+      this.columnReorderAnimator?.reset();
+      return;
+    }
+    const effectiveTargetColumnId = hint?.targetColumnId ?? targetColumnId;
+    const insertBefore = hint?.before ?? true;
+    if (sourceColumnId === effectiveTargetColumnId) {
+      this.dragDropTarget.set(null);
+      this.dragColumnId.set(null);
+      this.columnReorderAnimator?.reset();
       return;
     }
     this.headerOrder.update((order) => {
       const sourceIndex = order.indexOf(sourceColumnId);
-      const targetIndex = order.indexOf(targetColumnId);
-      if (sourceIndex < 0 || targetIndex < 0) {
+      if (sourceIndex < 0) {
         return order;
       }
-      const next = [...order];
-      next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, sourceColumnId);
+      const next = order.filter((id) => id !== sourceColumnId);
+      const targetIndex = next.indexOf(effectiveTargetColumnId);
+      if (targetIndex < 0) {
+        return order;
+      }
+      const insertAt = insertBefore ? targetIndex : targetIndex + 1;
+      next.splice(insertAt, 0, sourceColumnId);
       return next;
     });
 
     const columns = this.renderedColumns();
     const sourceColumn = columns.find((column) => column.id === sourceColumnId);
-    const targetColumn = columns.find((column) => column.id === targetColumnId);
+    const targetColumn = columns.find((column) => column.id === effectiveTargetColumnId);
 
     if (sourceColumn && targetColumn) {
       const targetPinned = targetColumn.pinned;
@@ -1024,7 +1093,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       }
     }
 
+    this.dragDropTarget.set(null);
     this.dragColumnId.set(null);
+    this.columnReorderAnimator?.reset();
   }
 
   protected cyclePinned(columnId: string): void {
