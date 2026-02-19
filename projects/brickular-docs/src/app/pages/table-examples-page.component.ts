@@ -1,14 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { BrickTableComponent } from 'brickular';
 import { createTableRows, defaultColumns } from '../table-demo-data';
 
 @Component({
   selector: 'docs-table-examples-page',
-  imports: [BrickTableComponent],
+  imports: [RouterLink, BrickTableComponent],
   template: `
     <section class="docs-page">
-      <h1>Table Examples</h1>
-      <p>Use the controls to test how the table behaves with larger data sets and theme changes.</p>
+      <h1>Table examples</h1>
+      <p class="docs-lead">
+        Interactive demos with configurable row count and compact mode. Use the controls below to see sorting, filtering, virtualization, and keyboard behavior with different data sizes.
+      </p>
+      <p>For full input/output and column options, see the <a routerLink="/table/api">Table API</a> page.</p>
 
       <div class="docs-controls">
         <label>

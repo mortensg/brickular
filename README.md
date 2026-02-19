@@ -1,106 +1,94 @@
 # Brickular
 
-Brickular is an Angular 20 component library workspace with a first release focused on a typed, high-performance data table.
+**Brickular** is an Angular component library built for production apps. The first release centers on a **typed, high-performance data table** with sorting, filtering, pagination, selection, and virtualization.
 
-## Workspace apps and library
+## Documentation
 
-- `projects/brickular`: publishable library package (`brickular`).
-- `projects/dev-app`: local playground for rapid component development.
-- `projects/brickular-docs`: documentation and demo application for GitHub Pages.
+**[Full documentation & live examples →](https://mortensg.github.io/brickular/)**
+
+- [Table overview](https://mortensg.github.io/brickular/table/overview) — features and usage
+- [Table examples](https://mortensg.github.io/brickular/table/examples) — interactive demos
+- [Table API](https://mortensg.github.io/brickular/table/api) — inputs, outputs, and types
 
 ## Quick start
-
-```bash
-npm install
-npm run start:dev
-```
-
-Use `npm run start:docs` to run the docs site locally.
-
-To preview the production GitHub Pages build locally (with `/brickular/` base-href):
-
-```bash
-npm run preview:docs
-```
-
-## Build targets
-
-```bash
-# Build publishable library
-npm run build:lib
-
-# Build docs app for GitHub Pages
-npm run build:docs
-
-# Build docs app for local preview sync
-npm run build:docs:local
-```
-
-## Installing in another Angular project
 
 ```bash
 npm install brickular
 ```
 
-Then import standalone components:
+In your Angular component:
 
 ```ts
 import { BrickTableComponent } from 'brickular';
+
+@Component({
+  imports: [BrickTableComponent],
+  template: `<b-table [data]="rows" [columnDefs]="columns" />`,
+})
+export class MyComponent {
+  rows = [
+    { id: 1, name: 'Alice', role: 'Admin' },
+    { id: 2, name: 'Bob', role: 'User' },
+  ];
+  columns = [
+    { id: 'name', header: 'Name', field: 'name' },
+    { id: 'role', header: 'Role', field: 'role' },
+  ];
+}
 ```
 
-Subpath imports are also available:
+Add the theme (e.g. in `styles.css`):
 
-```ts
-import { BrickTableComponent } from 'brickular/table';
-import { BrickButtonComponent, BrickInputComponent, BrickBadgeComponent } from 'brickular/primitives';
+```css
+@import 'brickular/styles/themes.css';
 ```
 
-## Table features in this version
+Then wrap your app (or layout) with a theme class: `brickular-theme-light` or `brickular-theme-dark`.
 
-- Typed column definitions (`BrickTableColumnDef<T>`).
-- Single and multi-column sorting.
-- Text/number/date filters with quick filter search.
-- Client-side pagination.
-- Single or multi-row selection.
-- Inline cell editing events.
-- Row virtualization.
-- Column reordering, pinning, and resizing.
+## Table features
 
-## Release readiness commands
+| Feature            | Description                                                          |
+| ------------------ | -------------------------------------------------------------------- |
+| **Typed API**      | `BrickTableColumnDef<T>` with value getters, formatters, comparators |
+| **Sorting**        | Single and multi-column, ascending/descending                        |
+| **Filtering**      | Text, number, and date filters plus quick-filter search              |
+| **Pagination**     | Client-side with configurable page size                              |
+| **Selection**      | Single or multiple row selection with checkboxes                     |
+| **Editing**        | Inline cell edit with commit/cancel events                           |
+| **Virtualization** | Row virtualization for large datasets                                |
+| **Columns**        | Reorder (drag), resize, pin left/right                               |
+| **Theming**        | CSS variables; light and dark themes included                        |
+
+## Workspace structure
+
+| Project                   | Purpose                                       |
+| ------------------------- | --------------------------------------------- |
+| `projects/brickular`      | Publishable library (npm package `brickular`) |
+| `projects/brickular-docs` | Documentation site (GitHub Pages)             |
+| `projects/dev-app`        | Local playground for development              |
+
+## Development
 
 ```bash
-# Docs smoke + a11y checks (Playwright)
-npm run test:e2e:docs
+# Install dependencies
+pnpm install
 
-# Full release gate used in CI
-npm run release:verify
+# Run docs site locally
+pnpm run start:docs
+
+# Run library tests
+pnpm run test:lib
+
+# Run docs e2e (Playwright)
+pnpm run test:e2e:docs
 ```
 
-## npm release flow (library only)
-
-Only `projects/brickular` is published to npm as the `brickular` package.  
-`projects/dev-app` and `projects/brickular-docs` are not npm packages.
-
-- Add/update `NPM_TOKEN` repository secret.
-- Bump `projects/brickular/package.json` version.
-- Create a GitHub release (or run `Publish Library` workflow manually).
-- Optional manual dry-run: run `Publish Library` with `dry_run=true` to build/validate/package without publishing.
-
-## Post-release verification checklist
-
-After each release, run this quick validation:
+Preview the production docs build (with base-href `/brickular/`):
 
 ```bash
-# Confirm npm has the expected version
-npm view brickular version
-
-# Confirm docs are serving from GitHub Pages
-curl -I https://mortensg.github.io/brickular/
+pnpm run preview:docs
 ```
 
-## Theme tokens
+## License
 
-Brickular ships CSS variable themes in `styles/themes.css` from the built package:
-
-- `.brickular-theme-light`
-- `.brickular-theme-dark`
+MIT

@@ -16,6 +16,32 @@
   line-height: 1.5;
 }
 
+.docs-lead {
+  font-size: 1.05rem;
+  color: var(--b-text-secondary, #555);
+}
+
+.docs-steps {
+  padding-left: 1.4rem;
+}
+
+.docs-steps li {
+  margin-bottom: 0.35rem;
+}
+
+.docs-nav-links {
+  list-style: none;
+  padding-left: 0;
+}
+
+.docs-nav-links li {
+  margin-bottom: 0.5rem;
+}
+
+.docs-nav-links a {
+  font-weight: 500;
+}
+
 .docs-page pre {
   background: rgba(0, 0, 0, 0.08);
   padding: 0.65rem;
@@ -34,4 +60,26 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+.docs-api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.docs-api-table th,
+.docs-api-table td {
+  padding: 0.4rem 0.65rem;
+  text-align: left;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.docs-api-table th {
+  background: rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+}
+
+.docs-api-table code {
+  font-size: 0.9em;
 }

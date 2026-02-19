@@ -1,63 +1,91 @@
-# Brickular
+# brickular
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.0.
+Angular component library with a **typed, high-performance data table**: sorting, filtering, pagination, row selection, virtualization, column reorder/resize/pin, and theming.
 
-## Code scaffolding
+**Requires Angular 20+.**
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Install
 
 ```bash
-ng generate --help
+npm install brickular
 ```
 
-## Building
+## Quick start
 
-To build the library, run:
+1. **Import the table** in your standalone component:
 
-```bash
-ng build brickular
+```ts
+import { BrickTableComponent } from 'brickular';
+
+@Component({
+  imports: [BrickTableComponent],
+  template: `<b-table [data]="data" [columnDefs]="columnDefs" />`,
+})
+export class MyTableComponent {
+  data = [
+    { id: 1, name: 'Alice', role: 'Admin' },
+    { id: 2, name: 'Bob', role: 'User' },
+  ];
+  columnDefs = [
+    { id: 'name', header: 'Name', field: 'name' },
+    { id: 'role', header: 'Role', field: 'role' },
+  ];
+}
 ```
 
-This command will compile your project, and the build artifacts will be placed in the `dist/` directory.
+2. **Add the theme** in your global styles (e.g. `styles.css`):
 
-### Publishing the Library
-
-Once the project is built, you can publish your library by following these steps:
-
-1. Navigate to the `dist` directory:
-   ```bash
-   cd dist/brickular
-   ```
-
-2. Run the `npm publish` command to publish your library to the npm registry:
-   ```bash
-   npm publish
-   ```
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
+```css
+@import 'brickular/styles/themes.css';
 ```
 
-## Running end-to-end tests
+3. **Apply a theme class** on a root element (e.g. `<body>` or your app shell):
 
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
+```html
+<body class="brickular-theme-light">
+  <!-- or brickular-theme-dark -->
+</body>
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Table features
 
-## Additional Resources
+- **Typed columns** — `BrickTableColumnDef<T>` with optional `field`, `valueGetter`, `valueFormatter`, `comparator`
+- **Sorting** — single/multi-column, configurable per column
+- **Filtering** — text, number, date filters + quick filter
+- **Pagination** — client-side, configurable page size and options
+- **Selection** — single or multiple row selection (`selectionMode`), `selectionChange` output
+- **Editing** — optional inline cell edit, `editCommit` / `cancelEdit` outputs
+- **Virtualization** — row virtualization for large lists
+- **Columns** — drag to reorder, resize handles, pin left/right (via context menu)
+- **Keyboard** — arrow keys, Tab, Home, End; focus restored when scrolling
+- **Theming** — CSS variables; light/dark themes included
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Subpath imports
+
+```ts
+import { BrickTableComponent } from 'brickular/table';
+import { BrickButtonComponent, BrickInputComponent, BrickBadgeComponent } from 'brickular/primitives';
+```
+
+## Documentation
+
+**[Full docs and live examples](https://mortensg.github.io/brickular/)**
+
+- [Table overview](https://mortensg.github.io/brickular/table/overview)
+- [Table examples](https://mortensg.github.io/brickular/table/examples)
+- [Table API](https://mortensg.github.io/brickular/table/api)
+
+## API summary
+
+| Inputs | Outputs |
+|--------|---------|
+| `data`, `columnDefs` | `selectionChange` |
+| `defaultPageSize`, `pageSizeOptions`, `rowHeight` | `sortChange`, `pageChange` |
+| `selectionMode` (`'single'` \| `'multiple'`) | `editCommit` |
+| `paginationEnabled`, `quickFilter`, … | |
+
+Column def: `id`, `header`, `field?`, `sortable?`, `filterable?`, `editable?`, `pinned?`, `valueGetter?`, `valueFormatter?`, `comparator?`, and more.
+
+## License
+
+MIT
