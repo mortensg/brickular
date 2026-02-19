@@ -48,3 +48,6 @@ Thumbs.db
 
 # Cursor
 .cursor/
+
+# Local planning/docs scratch files
+TABLE_FEATURE_MATRIX.md

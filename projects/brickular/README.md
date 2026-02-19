@@ -75,6 +75,8 @@ import { BrickButtonComponent, BrickInputComponent, BrickBadgeComponent } from '
 - [Table examples](https://mortensg.github.io/brickular/table/examples)
 - [Table API](https://mortensg.github.io/brickular/table/api)
 
+For a detailed list of **behavior guarantees** that P1 commits to (sorting, filtering, pagination, selection, column reorder/resize/pin, keyboard navigation, and virtualization), see `TABLE_BEHAVIOR_CONTRACT_P1.md` in the package root.
+
 ## API summary
 
 | Inputs | Outputs |
