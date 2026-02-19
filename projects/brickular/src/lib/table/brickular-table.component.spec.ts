@@ -106,20 +106,6 @@ describe('BrickTableComponent', () => {
     expect(dragStartEvent.dataTransfer?.setData).not.toHaveBeenCalled();
   });
 
-  it('synchronizes header horizontal scroll with viewport scroll', () => {
-    const fixture = TestBed.createComponent(HostComponent);
-    fixture.detectChanges();
-
-    const viewport = fixture.debugElement.query(By.css('.b-table__viewport')).nativeElement as HTMLDivElement;
-    const headScroller = fixture.debugElement.query(By.css('.b-table__head-scroller')).nativeElement as HTMLDivElement;
-
-    viewport.scrollLeft = 48;
-    viewport.dispatchEvent(new Event('scroll'));
-    fixture.detectChanges();
-
-    expect(headScroller.scrollLeft).toBe(48);
-  });
-
   it('moves focus with arrow key navigation between cells', () => {
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();

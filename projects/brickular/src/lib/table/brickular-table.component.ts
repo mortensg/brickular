@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   ViewEncapsulation,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
@@ -268,6 +270,8 @@ import {
   encapsulation: ViewEncapsulation.None,
 })
 export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly scrollShell = viewChild<ElementRef<HTMLDivElement>>('scrollShell');
   readonly bodyContent = viewChild<ElementRef<HTMLDivElement>>('bodyContent');
   readonly verticalScrollbar = viewChild<ElementRef<HTMLDivElement>>('verticalScrollbar');
@@ -600,9 +604,23 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       requestAnimationFrame(sync);
 
       if (typeof ResizeObserver !== 'undefined') {
-        const observer = new ResizeObserver(() => sync());
+        let rafId: number | null = null;
+        const observer = new ResizeObserver(() => {
+          if (rafId !== null) {
+            return;
+          }
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            sync();
+          });
+        });
         observer.observe(contentElement);
-        onCleanup(() => observer.disconnect());
+        onCleanup(() => {
+          if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+          }
+          observer.disconnect();
+        });
       }
     });
 
@@ -890,12 +908,30 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     const startWidth = this.columnWidths()[column.id] ?? column.width ?? 160;
     const minWidth = column.minWidth ?? 80;
     const maxWidth = column.maxWidth ?? 600;
+    let rafId: number | null = null;
+    let lastMoveEvent: MouseEvent | null = null;
+    const flushResize = (): void => {
+      rafId = null;
+      const moveEvent = lastMoveEvent;
+      lastMoveEvent = null;
+      if (moveEvent) {
+        const delta = moveEvent.clientX - startX;
+        const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
+        this.columnWidths.update((current) => ({ ...current, [column.id]: nextWidth }));
+      }
+    };
     const onMouseMove = (moveEvent: MouseEvent): void => {
-      const delta = moveEvent.clientX - startX;
-      const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
-      this.columnWidths.update((current) => ({ ...current, [column.id]: nextWidth }));
+      lastMoveEvent = moveEvent;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushResize);
+      }
     };
     const onMouseUp = (): void => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      lastMoveEvent = null;
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       this.isResizing.set(false);
@@ -1090,6 +1126,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.scrollColumnIntoView(columnIndex);
     this.activeCell.set({ pagedRowIndex, columnIndex });
     setTimeout(() => {
+      if (this.destroyRef.destroyed) {
+        return;
+      }
       const range = this.visibleRange();
       if (pagedRowIndex < range.start || pagedRowIndex >= range.end) {
         return;
