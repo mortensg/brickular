@@ -18,6 +18,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
             [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
             [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
+            [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
             role="columnheader"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
@@ -26,9 +27,11 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             tabindex="0"
             (contextmenu)="onHeaderContextMenu($event, column)"
             (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
-            (dragover)="onHeaderDragOver($event)"
-            (drop)="headerDrop.emit(column.id)"
+            (dragover)="onHeaderDragOver($event, column.id)"
+            (dragend)="onHeaderDragEnd()"
+            (drop)="onHeaderDropInternal(column.id)"
           >
+            @if (column.id !== draggingColumnId()) {
             <input
               type="checkbox"
               [checked]="allVisibleSelected()"
@@ -37,12 +40,14 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
               (click)="$event.stopPropagation()"
               aria-label="Select visible rows"
             />
+            }
           </div>
         } @else {
           <div
             [class]="headerCellClass(column)"
             [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
             [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
+            [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
             [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
@@ -55,9 +60,11 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
             (contextmenu)="onHeaderContextMenu($event, column)"
             (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
-            (dragover)="onHeaderDragOver($event)"
-            (drop)="headerDrop.emit(column.id)"
+            (dragover)="onHeaderDragOver($event, column.id)"
+            (dragend)="onHeaderDragEnd()"
+            (drop)="onHeaderDropInternal(column.id)"
           >
+            @if (column.id !== draggingColumnId()) {
             <span>{{ column.header }}</span>
             <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
             @if (column.resizable !== false) {
@@ -69,6 +76,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                 (mousedown)="resizeStart.emit({ columnId: column.id, event: $event }); $event.stopPropagation()"
                 [attr.aria-label]="'Resize column ' + column.header"
               ></button>
+            }
             }
           </div>
         }
@@ -84,6 +92,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
             [class.b-table__filter-cell--left-boundary]="column.id === lastLeftColumnId()"
             [class.b-table__filter-cell--right-boundary]="column.id === firstRightColumnId()"
+            [class.b-table__filter-cell--drag-slot]="column.id === draggingColumnId()"
             role="gridcell"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
@@ -97,13 +106,14 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
           [class.b-table__filter-cell--pinned-right]="column.pinned === 'right'"
           [class.b-table__filter-cell--left-boundary]="column.id === lastLeftColumnId()"
           [class.b-table__filter-cell--right-boundary]="column.id === firstRightColumnId()"
+          [class.b-table__filter-cell--drag-slot]="column.id === draggingColumnId()"
           [style.width.px]="columnWidths()[column.id]"
           [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
           [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
           [style.minWidth.px]="column.minWidth ?? 80"
           [style.maxWidth.px]="column.maxWidth ?? 600"
         >
-          @if (column.filterable !== false) {
+          @if (column.filterable !== false && column.id !== draggingColumnId()) {
             @if (resolveFilterType(column) === 'number') {
               <div class="b-table__filter-range">
                 <input
@@ -171,16 +181,24 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly someVisibleSelected = input(false);
   readonly sortIndicator = input<(columnId: string) => string>(() => '');
   readonly filters = input<Record<string, BrickFilterValue>>({});
+  readonly draggingColumnId = input<string | null>(null);
 
   readonly toggleSelectVisibleRows = output<boolean>();
   readonly toggleSort = output<{ columnId: string; addToSort: boolean }>();
   readonly headerDragStart = output<{ columnId: string; event: DragEvent }>();
   readonly headerDrop = output<string>();
+  /** Emits current drop target during drag so parent can show preview order; null when drag ends. */
+  readonly headerDragTarget = output<{ targetColumnId: string; before: boolean } | null>();
+  /** Emits when a header drag ends without drop (e.g. cancel or drag outside). */
+  readonly headerDragEnd = output<void>();
   readonly resizeStart = output<{ columnId: string; event: MouseEvent }>();
   readonly headerContextMenu = output<{ columnId: string; x: number; y: number }>();
   readonly textFilterChange = output<{ columnId: string; value: string }>();
   readonly numberFilterChange = output<{ columnId: string; edge: 'min' | 'max'; value?: number }>();
   readonly dateFilterChange = output<{ columnId: string; edge: 'start' | 'end'; value?: string }>();
+
+  private dragOverColumnId: string | null = null;
+  private dragOverBefore = true;
 
   protected headerCellClass(column: BrickTableColumnDef<T>): string {
     return [
@@ -198,8 +216,65 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     this.headerContextMenu.emit({ columnId: column.id, x: event.clientX, y: event.clientY });
   }
 
-  protected onHeaderDragOver(event: DragEvent): void {
+  protected onHeaderDragOver(event: DragEvent, targetColumnId: string): void {
     event.preventDefault();
+    const draggingId = this.draggingColumnId();
+    if (!draggingId) {
+      this.clearDragPlaceholder();
+      return;
+    }
+    // When hovering over the drag-slot itself, keep the previous target so the placeholder
+    // does not jitter back and forth as columns reorder.
+    if (targetColumnId === draggingId) {
+      return;
+    }
+    const element = event.currentTarget as HTMLElement | null;
+    if (!element) {
+      this.clearDragPlaceholder();
+      return;
+    }
+    const rect = element.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const before = offsetX < rect.width / 2;
+    this.dragOverColumnId = targetColumnId;
+    this.dragOverBefore = before;
+    this.headerDragTarget.emit({ targetColumnId, before });
+  }
+
+  protected onHeaderDragEnd(): void {
+    this.clearDragPlaceholder();
+    this.headerDragEnd.emit();
+  }
+
+  protected onHeaderDropInternal(targetColumnId: string): void {
+    this.headerDrop.emit(targetColumnId);
+    this.clearDragPlaceholder();
+  }
+
+  protected dragPlaceholderWidthPx(columnId: string): number | null {
+    if (!this.isDragPlaceholderBefore(columnId) && !this.isDragPlaceholderAfter(columnId)) {
+      return null;
+    }
+    const draggingId = this.draggingColumnId();
+    if (!draggingId) {
+      return null;
+    }
+    const width = this.columnWidths()[draggingId];
+    return typeof width === 'number' && width > 0 ? width : null;
+  }
+
+  protected isDragPlaceholderBefore(columnId: string): boolean {
+    return this.dragOverColumnId === columnId && this.dragOverBefore;
+  }
+
+  protected isDragPlaceholderAfter(columnId: string): boolean {
+    return this.dragOverColumnId === columnId && !this.dragOverBefore;
+  }
+
+  private clearDragPlaceholder(): void {
+    this.dragOverColumnId = null;
+    this.dragOverBefore = true;
+    this.headerDragTarget.emit(null);
   }
 
   protected onSelectVisibleChange(event: Event): void {

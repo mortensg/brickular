@@ -430,8 +430,48 @@
 .b-table__header-row .b-table__header-select-cell {
   display: grid;
   place-items: center;
+  position: relative;
   padding: 0;
   background: var(--b-table-header-bg);
+}
+
+/* Drag placeholder indicator in header */
+.b-table__header-cell--drag-placeholder-before::before,
+.b-table__header-cell--drag-placeholder-after::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--b-drag-placeholder-width, 2px);
+  background: #2563eb;
+  pointer-events: none;
+}
+
+.b-table__header-cell--drag-placeholder-before::before {
+  left: 0;
+  transform: translateX(calc(-1 * var(--b-drag-placeholder-width, 2px)));
+}
+
+.b-table__header-cell--drag-placeholder-after::before {
+  right: 0;
+}
+
+/* Drag slot: empty column placeholder during reorder (header, filter row, body) */
+.b-table__header-cell--drag-slot,
+.b-table__filter-cell--drag-slot {
+  background: rgba(37, 99, 235, 0.08);
+  transition: background 0.12s ease-out;
+  border-left: 0;
+  border-right: 0;
+  box-shadow: inset 2px 0 0 #2563eb, inset -2px 0 0 #2563eb;
+}
+
+.b-table__cell--drag-slot,
+.b-table__select-cell.b-table__cell--drag-slot {
+  background: rgba(37, 99, 235, 0.08);
+  border-left: 2px solid #2563eb;
+  border-right: 2px solid #2563eb;
+  transition: background 0.12s ease-out;
 }
 
 .b-table__cell--selected {

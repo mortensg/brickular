@@ -16,7 +16,21 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
       (mouseleave)="rowMouseLeave.emit()"
     >
       @for (column of columns(); track column.id; let columnIndex = $index) {
-        @if (column.id === BRICK_SELECT_COLUMN_ID) {
+        @if (column.id === dragColumnId()) {
+          <div
+            [class.b-table__select-cell]="column.id === BRICK_SELECT_COLUMN_ID"
+            [class.b-table__cell]="column.id !== BRICK_SELECT_COLUMN_ID"
+            class="b-table__cell--drag-slot"
+            [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
+            [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            [class.b-table__cell--left-boundary]="panePosition() === 'left' && columnIndex === columns().length - 1"
+            [class.b-table__cell--right-boundary]="panePosition() === 'right' && columnIndex === 0"
+            role="gridcell"
+            [style.width.px]="columnWidths()[column.id]"
+            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
+          ></div>
+        } @else if (column.id === BRICK_SELECT_COLUMN_ID) {
           <div
             class="b-table__select-cell"
             [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
@@ -97,6 +111,8 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly stickyRightPx = input<Record<string, number>>({});
   readonly selectedIndices = input<readonly number[]>([]);
   readonly editingCell = input<{ rowIndex: number; columnId: string } | null>(null);
+  /** When set, the column with this id is being dragged and should render as an empty placeholder slot. */
+  readonly dragColumnId = input<string | null>(null);
 
   readonly toggleSelection = output<{ rowIndex: number; shiftKey: boolean }>();
   readonly startEdit = output<{ rowIndex: number; columnId: string }>();

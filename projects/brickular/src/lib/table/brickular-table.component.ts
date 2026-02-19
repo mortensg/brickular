@@ -71,26 +71,29 @@ import {
         <div class="b-table__head-row">
           <div #headScroller class="b-table__head-scroller" (wheel)="onHeaderWheel($event)">
             <b-table-header
-            [columns]="renderedColumns()"
-            [columnWidths]="resolvedColumnWidths()"
-            [stickyLeftPx]="stickyLeftPx()"
-            [stickyRightPx]="stickyRightPx()"
-            [lastLeftColumnId]="lastLeftColumnId()"
-            [firstRightColumnId]="firstRightColumnId()"
-            [allVisibleSelected]="allVisibleSelected()"
-            [someVisibleSelected]="someVisibleSelected()"
-            [sortIndicator]="sortIndicatorForHeader"
-            [filters]="filters()"
-            (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
-            (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
-            (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
-            (headerDrop)="onHeaderDrop($event)"
-            (resizeStart)="startResizeById($event.columnId, $event.event)"
-            (headerContextMenu)="openHeaderContextMenu($event.columnId, $event.x, $event.y)"
-            (textFilterChange)="setTextFilter($event.columnId, $event.value)"
-            (numberFilterChange)="setNumberFilter($event.columnId, $event.edge, $event.value)"
-            (dateFilterChange)="setDateFilter($event.columnId, $event.edge, $event.value)"
-          />
+              [columns]="previewRenderedColumns()"
+              [columnWidths]="resolvedColumnWidths()"
+              [stickyLeftPx]="stickyLeftPx()"
+              [stickyRightPx]="stickyRightPx()"
+              [lastLeftColumnId]="lastLeftColumnId()"
+              [firstRightColumnId]="firstRightColumnId()"
+              [allVisibleSelected]="allVisibleSelected()"
+              [someVisibleSelected]="someVisibleSelected()"
+              [sortIndicator]="sortIndicatorForHeader"
+              [filters]="filters()"
+              [draggingColumnId]="dragColumnId()"
+              (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
+              (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
+              (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
+              (headerDrop)="onHeaderDrop($event)"
+              (headerDragTarget)="onHeaderDragTarget($event)"
+              (headerDragEnd)="onHeaderDragEnd()"
+              (resizeStart)="startResizeById($event.columnId, $event.event)"
+              (headerContextMenu)="openHeaderContextMenu($event.columnId, $event.x, $event.y)"
+              (textFilterChange)="setTextFilter($event.columnId, $event.value)"
+              (numberFilterChange)="setNumberFilter($event.columnId, $event.edge, $event.value)"
+              (dateFilterChange)="setDateFilter($event.columnId, $event.edge, $event.value)"
+            />
           </div>
           <div class="b-table__scrollbar-v-corner" aria-hidden="true"></div>
         </div>
@@ -132,6 +135,7 @@ import {
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
+                        [dragColumnId]="dragColumnId()"
                         (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
                         (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                         (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
@@ -169,6 +173,7 @@ import {
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
+                        [dragColumnId]="dragColumnId()"
                         (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
                         (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                         (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
@@ -201,6 +206,7 @@ import {
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
+                        [dragColumnId]="dragColumnId()"
                         (toggleSelection)="toggleRowSelection($event.rowIndex, $event.shiftKey)"
                         (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                         (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
@@ -310,7 +316,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly pinnedColumns = signal<Record<string, BrickColumnPin | undefined>>({});
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
   protected readonly columnWidths = signal<Record<string, number>>({});
-  private readonly dragColumnId = signal<string | null>(null);
+  protected readonly dragColumnId = signal<string | null>(null);
+  /** During drag: where the column would drop (so we can show preview order). */
+  private readonly dragDropTarget = signal<{ targetColumnId: string; before: boolean } | null>(null);
   private readonly isResizing = signal(false);
   private readonly resizeEndedAt = signal(0);
   protected readonly scrollTop = signal(0);
@@ -358,6 +366,27 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     );
   });
 
+  /** Column order for display: when dragging, reorder so the grid shows the drop result. */
+  protected readonly previewRenderedColumns = computed(() => {
+    const cols = this.renderedColumns();
+    const dragId = this.dragColumnId();
+    const target = this.dragDropTarget();
+    if (!dragId || !target) {
+      return cols;
+    }
+    const without = cols.filter((c) => c.id !== dragId);
+    const draggedCol = cols.find((c) => c.id === dragId);
+    if (!draggedCol) {
+      return cols;
+    }
+    const targetIdx = without.findIndex((c) => c.id === target.targetColumnId);
+    if (targetIdx === -1) {
+      return cols;
+    }
+    const insertAt = target.before ? targetIdx : targetIdx + 1;
+    return [...without.slice(0, insertAt), draggedCol, ...without.slice(insertAt)];
+  });
+
   protected readonly filteredRows = computed<readonly BrickTableRow<T>[]>(() => {
     return filterRows(createRows(this.data()), this.renderedColumns(), this.filters(), this.quickFilter());
   });
@@ -384,10 +413,14 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     const range = this.visibleRange();
     return this.pagedRows().slice(range.start, range.end);
   });
-  protected readonly leftColumns = computed(() => this.renderedColumns().filter((column) => column.pinned === 'left'));
-  protected readonly rightColumns = computed(() => this.renderedColumns().filter((column) => column.pinned === 'right'));
+  protected readonly leftColumns = computed(() =>
+    this.previewRenderedColumns().filter((column) => column.pinned === 'left'),
+  );
+  protected readonly rightColumns = computed(() =>
+    this.previewRenderedColumns().filter((column) => column.pinned === 'right'),
+  );
   protected readonly centerColumns = computed(() =>
-    this.renderedColumns().filter((column) => !column.pinned),
+    this.previewRenderedColumns().filter((column) => !column.pinned),
   );
   protected readonly lastLeftColumnId = computed(() => {
     const left = this.leftColumns();
@@ -400,7 +433,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
   /** Cumulative left offset (px) for each left-pinned column for sticky positioning. First left column gets 0, second gets width(first), etc. */
   protected readonly stickyLeftPx = computed(() => {
-    const columns = this.renderedColumns();
+    const columns = this.previewRenderedColumns();
     const widths = this.resolvedColumnWidths();
     const result: Record<string, number> = {};
     let left = 0;
@@ -892,6 +925,14 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       hBar.scrollLeft += horizontalDelta;
       this.centerScrollLeft.set(hBar.scrollLeft);
     }
+  }
+
+  protected onHeaderDragEnd(): void {
+    this.dragColumnId.set(null);
+  }
+
+  protected onHeaderDragTarget(hint: { targetColumnId: string; before: boolean } | null): void {
+    this.dragDropTarget.set(hint);
   }
 
   protected openHeaderContextMenu(columnId: string, x: number, y: number): void {
