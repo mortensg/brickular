@@ -25,6 +25,8 @@
   --b-scrollbar-track: var(--b-table-header-bg);
   --b-scrollbar-thumb: var(--b-table-border);
   --b-scrollbar-thumb-hover: var(--b-table-fg);
+  /* Thin scrollbar track size (centered in container) */
+  --b-scrollbar-thin-size: 0.75rem;
 
   display: grid;
   gap: 0.75rem;
@@ -118,33 +120,41 @@
   min-height: 100%;
 }
 
-/* Vertical scrollbar: fixed width, fills body-row height, scrolls via spacer height */
+/* Vertical scrollbar: container fills slot; inner is thin and centered */
 .b-table__scrollbar-v {
   flex: 0 0 auto;
   width: var(--b-scrollbar-width, 0.875rem);
-  min-width: 0.875rem;
-  overflow-y: scroll;
-  overflow-x: hidden;
+  min-width: var(--b-scrollbar-width, 0.875rem);
+  height: 100%;
+  display: flex;
+  justify-content: center;
   background: var(--b-table-header-bg);
   border-left: 1px solid var(--b-table-border);
+}
+
+.b-table__scrollbar-v-inner {
+  width: var(--b-scrollbar-thin-size);
+  height: 100%;
+  overflow-y: scroll;
+  overflow-x: hidden;
   scrollbar-color: var(--b-scrollbar-thumb) var(--b-scrollbar-track);
-  scrollbar-width: thin;
 }
 
-.b-table__scrollbar-v::-webkit-scrollbar {
-  width: var(--b-scrollbar-width, 0.875rem);
+.b-table__scrollbar-v-inner::-webkit-scrollbar {
+  width: 100%;
 }
 
-.b-table__scrollbar-v::-webkit-scrollbar-track {
+.b-table__scrollbar-v-inner::-webkit-scrollbar-track {
   background: var(--b-scrollbar-track);
 }
 
-.b-table__scrollbar-v::-webkit-scrollbar-thumb {
+.b-table__scrollbar-v-inner::-webkit-scrollbar-thumb {
   background: var(--b-scrollbar-thumb);
   border-radius: 9999px;
+  min-height: 2.5rem;
 }
 
-.b-table__scrollbar-v::-webkit-scrollbar-thumb:hover {
+.b-table__scrollbar-v-inner::-webkit-scrollbar-thumb:hover {
   background: var(--b-scrollbar-thumb-hover);
 }
 
@@ -174,32 +184,42 @@
   background: var(--b-table-header-bg);
 }
 
-/* Horizontal scrollbar: flex 1 so it only takes remaining space; wide spacer inside scrolls. */
+/* Horizontal scrollbar: container fills row; inner is thin and centered */
 .b-table__scrollbar-h {
   flex: 1 1 0;
   min-width: 0;
-  overflow-x: scroll;
-  overflow-y: hidden;
+  height: 100%;
+  display: flex;
+  align-items: center;
   background: var(--b-table-header-bg);
   max-width: 100%;
+  border-left: 1px solid var(--b-table-border);
+  border-right: 1px solid var(--b-table-border);
+}
+
+.b-table__scrollbar-h-inner {
+  width: 100%;
+  height: var(--b-scrollbar-thin-size);
+  overflow-x: scroll;
+  overflow-y: hidden;
   scrollbar-color: var(--b-scrollbar-thumb) var(--b-scrollbar-track);
-  scrollbar-width: thin;
 }
 
-.b-table__scrollbar-h::-webkit-scrollbar {
-  height: 1rem;
+.b-table__scrollbar-h-inner::-webkit-scrollbar {
+  height: 100%;
 }
 
-.b-table__scrollbar-h::-webkit-scrollbar-track {
+.b-table__scrollbar-h-inner::-webkit-scrollbar-track {
   background: var(--b-scrollbar-track);
 }
 
-.b-table__scrollbar-h::-webkit-scrollbar-thumb {
+.b-table__scrollbar-h-inner::-webkit-scrollbar-thumb {
   background: var(--b-scrollbar-thumb);
   border-radius: 9999px;
+  min-width: 2.5rem;
 }
 
-.b-table__scrollbar-h::-webkit-scrollbar-thumb:hover {
+.b-table__scrollbar-h-inner::-webkit-scrollbar-thumb:hover {
   background: var(--b-scrollbar-thumb-hover);
 }
 

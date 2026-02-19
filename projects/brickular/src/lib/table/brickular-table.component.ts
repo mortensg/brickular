@@ -210,22 +210,26 @@ import {
                 </div>
               </div>
             </div>
-            <div
-              #verticalScrollbar
-              class="b-table__scrollbar-v"
-              (scroll)="onVerticalScrollbarScroll($event)"
-            >
-              <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
+            <div class="b-table__scrollbar-v">
+              <div
+                #verticalScrollbar
+                class="b-table__scrollbar-v-inner"
+                (scroll)="onVerticalScrollbarScroll($event)"
+              >
+                <div class="b-table__spacer" [style.height.px]="totalHeightPx()"></div>
+              </div>
             </div>
           </div>
           <div class="b-table__scrollbar-h-row">
             <div class="b-table__scrollbar-h-spacer" [style.width.px]="leftPaneWidth()"></div>
-            <div
-              #horizontalScrollbar
-              class="b-table__scrollbar-h"
-              (scroll)="onHorizontalScrollbarScroll($event)"
-            >
-              <div class="b-table__spacer-h" [style.width.px]="centerColumnsTotalWidth()"></div>
+            <div class="b-table__scrollbar-h">
+              <div
+                #horizontalScrollbar
+                class="b-table__scrollbar-h-inner"
+                (scroll)="onHorizontalScrollbarScroll($event)"
+              >
+                <div class="b-table__spacer-h" [style.width.px]="centerColumnsTotalWidth()"></div>
+              </div>
             </div>
             <div class="b-table__scrollbar-h-spacer" [style.width.px]="rightPaneWidth()"></div>
             <div class="b-table__scrollbar-h-v-gap" aria-hidden="true"></div>
