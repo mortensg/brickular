@@ -24,7 +24,7 @@ test.describe('Brickular Docs Table', () => {
     await page.setViewportSize({ width: 640, height: 900 });
     await page.goto('table/examples');
 
-    const hScrollbar = page.locator('.b-table__scrollbar-h');
+    const hScrollbar = page.locator('.b-table__scrollbar-h-inner');
     await expect(hScrollbar).toBeVisible();
 
     await expect
