@@ -13,6 +13,13 @@ export function createRows<T extends BrickRowData>(data: readonly T[]): readonly
   return data.map((source, sourceIndex) => ({ source, sourceIndex }));
 }
 
+function hasPinnedKey(
+  pinnedColumns: Record<string, BrickColumnPin | undefined>,
+  columnId: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(pinnedColumns, columnId);
+}
+
 export function resolveRenderedColumns<T extends BrickRowData>(
   columns: readonly BrickTableColumnDef<T>[],
   hiddenColumns: Record<string, boolean>,
@@ -23,8 +30,8 @@ export function resolveRenderedColumns<T extends BrickRowData>(
   const visible = columns.filter((column) => !column.hidden && !hiddenColumns[column.id]);
 
   const sorted = [...visible].sort((left, right) => {
-    const leftPinned = pinnedColumns[left.id] ?? left.pinned;
-    const rightPinned = pinnedColumns[right.id] ?? right.pinned;
+    const leftPinned = hasPinnedKey(pinnedColumns, left.id) ? pinnedColumns[left.id] : left.pinned;
+    const rightPinned = hasPinnedKey(pinnedColumns, right.id) ? pinnedColumns[right.id] : right.pinned;
     if (leftPinned !== rightPinned) {
       if (leftPinned === 'left' || rightPinned === 'right') {
         return -1;
@@ -36,9 +43,10 @@ export function resolveRenderedColumns<T extends BrickRowData>(
     return (orderMap.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(right.id) ?? Number.MAX_SAFE_INTEGER);
   });
 
-  // Return columns with their effective pinned state so templates and cell variants stay in sync
+  // Return columns with their effective pinned state so templates and cell variants stay in sync.
+  // Use hasOwnProperty so that explicit undefined (user unpinned) is not overwritten by column.pinned.
   return sorted.map((column) => {
-    const effectivePinned = pinnedColumns[column.id] ?? column.pinned;
+    const effectivePinned = hasPinnedKey(pinnedColumns, column.id) ? pinnedColumns[column.id] : column.pinned;
     return {
       ...column,
       pinned: effectivePinned,

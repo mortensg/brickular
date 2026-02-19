@@ -1,5 +1,8 @@
 export type BrickRowData = Record<string, unknown>;
 
+/** Reserved column id for the built-in row selection checkbox column. Pinned left by default, behaves like a normal column. */
+export const BRICK_SELECT_COLUMN_ID = '__brick_select';
+
 export type BrickSortDirection = 'asc' | 'desc';
 export type BrickSelectionMode = 'single' | 'multiple';
 export type BrickColumnPin = 'left' | 'right';

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BrickColumnPin, BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
+import { BRICK_SELECT_COLUMN_ID, BrickColumnPin, BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
 import { resolveFilterType as engineResolveFilterType } from './table-engine';
 import { tableHeaderCellVariants, toPinVariant } from './table-variants';
 
@@ -9,65 +9,105 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
   imports: [CommonModule],
   template: `
     <div class="b-table__header-row" role="row">
-      <div class="b-table__select-cell" role="columnheader">
-        <input
-          type="checkbox"
-          [checked]="allVisibleSelected()"
-          [indeterminate]="someVisibleSelected()"
-          (change)="onSelectVisibleChange($event)"
-          aria-label="Select visible rows"
-        />
-      </div>
       @for (column of columns(); track column.id) {
-        <div
-          [class]="headerCellClass(column)"
-          [style.width.px]="columnWidths()[column.id]"
-          [style.minWidth.px]="column.minWidth ?? 80"
-          [style.maxWidth.px]="column.maxWidth ?? 600"
-          [title]="column.tooltip ?? column.header"
-          draggable="true"
-          role="columnheader"
-          tabindex="0"
-          (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
-          (contextmenu)="onHeaderContextMenu($event, column)"
-          (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
-          (dragover)="onHeaderDragOver($event)"
-          (drop)="headerDrop.emit(column.id)"
-        >
-          <span>{{ column.header }}</span>
-          <button
-            type="button"
-            class="b-table__pin-button"
-            [disabled]="column.pinnable === false"
-            (click)="cyclePinned.emit(column.id); $event.stopPropagation()"
-            [attr.aria-label]="'Pin column ' + column.header"
+        @if (column.id === BRICK_SELECT_COLUMN_ID) {
+          <div
+            [class]="headerCellClass(column)"
+            class="b-table__select-cell b-table__header-select-cell"
+            [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
+            [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            role="columnheader"
+            [style.width.px]="columnWidths()[column.id]"
+            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.right.px]="column.pinned === 'right' ? 0 : null"
+            draggable="true"
+            tabindex="0"
+            (contextmenu)="onHeaderContextMenu($event, column)"
+            (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
+            (dragover)="onHeaderDragOver($event)"
+            (drop)="headerDrop.emit(column.id)"
           >
-            {{ pinnedLabel(column.pinned) }}
-          </button>
-          <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
-          @if (column.resizable !== false) {
+            <input
+              type="checkbox"
+              [checked]="allVisibleSelected()"
+              [indeterminate]="someVisibleSelected()"
+              (change)="onSelectVisibleChange($event); $event.stopPropagation()"
+              (click)="$event.stopPropagation()"
+              aria-label="Select visible rows"
+            />
             <button
               type="button"
-              class="b-table__resize-handle"
-              draggable="false"
-              (dragstart)="$event.preventDefault(); $event.stopPropagation()"
-              (mousedown)="resizeStart.emit({ columnId: column.id, event: $event }); $event.stopPropagation()"
-              [attr.aria-label]="'Resize column ' + column.header"
-            ></button>
-          }
-        </div>
+              class="b-table__pin-button"
+              [disabled]="column.pinnable === false"
+              (click)="cyclePinned.emit(column.id); $event.stopPropagation()"
+              aria-label="Pin selection column"
+            >
+              {{ pinnedLabel(column.pinned) }}
+            </button>
+          </div>
+        } @else {
+          <div
+            [class]="headerCellClass(column)"
+            [style.width.px]="columnWidths()[column.id]"
+            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.minWidth.px]="column.minWidth ?? 80"
+            [style.maxWidth.px]="column.maxWidth ?? 600"
+            [title]="column.tooltip ?? column.header"
+            draggable="true"
+            role="columnheader"
+            tabindex="0"
+            (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
+            (contextmenu)="onHeaderContextMenu($event, column)"
+            (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
+            (dragover)="onHeaderDragOver($event)"
+            (drop)="headerDrop.emit(column.id)"
+          >
+            <span>{{ column.header }}</span>
+            <button
+              type="button"
+              class="b-table__pin-button"
+              [disabled]="column.pinnable === false"
+              (click)="cyclePinned.emit(column.id); $event.stopPropagation()"
+              [attr.aria-label]="'Pin column ' + column.header"
+            >
+              {{ pinnedLabel(column.pinned) }}
+            </button>
+            <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
+            @if (column.resizable !== false) {
+              <button
+                type="button"
+                class="b-table__resize-handle"
+                draggable="false"
+                (dragstart)="$event.preventDefault(); $event.stopPropagation()"
+                (mousedown)="resizeStart.emit({ columnId: column.id, event: $event }); $event.stopPropagation()"
+                [attr.aria-label]="'Resize column ' + column.header"
+              ></button>
+            }
+          </div>
+        }
       }
     </div>
 
     <div class="b-table__filter-row" role="row">
-      <div class="b-table__select-cell b-table__select-cell--empty" role="gridcell"></div>
       @for (column of columns(); track column.id) {
+        @if (column.id === BRICK_SELECT_COLUMN_ID) {
+          <div
+            class="b-table__select-cell b-table__select-cell--empty"
+            [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
+            [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            role="gridcell"
+            [style.width.px]="columnWidths()[column.id]"
+            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.right.px]="column.pinned === 'right' ? 0 : null"
+          ></div>
+        } @else {
         <div
           class="b-table__filter-cell"
           role="gridcell"
           [class.b-table__filter-cell--pinned-left]="column.pinned === 'left'"
           [class.b-table__filter-cell--pinned-right]="column.pinned === 'right'"
           [style.width.px]="columnWidths()[column.id]"
+          [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
           [style.minWidth.px]="column.minWidth ?? 80"
           [style.maxWidth.px]="column.maxWidth ?? 600"
         >
@@ -120,14 +160,18 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             }
           }
         </div>
+        }
       }
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
+  protected readonly BRICK_SELECT_COLUMN_ID = BRICK_SELECT_COLUMN_ID;
   readonly columns = input<readonly BrickTableColumnDef<T>[]>([]);
   readonly columnWidths = input<Record<string, number>>({});
+  /** Cumulative left offset (px) per column id for left-pinned sticky positioning. */
+  readonly stickyLeftPx = input<Record<string, number>>({});
   readonly allVisibleSelected = input(false);
   readonly someVisibleSelected = input(false);
   readonly sortIndicator = input<(columnId: string) => string>(() => '');

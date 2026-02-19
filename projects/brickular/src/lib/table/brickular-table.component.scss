@@ -281,13 +281,41 @@
   min-width: 2.25rem;
   display: grid;
   place-items: center;
-  position: sticky;
-  left: 0;
-  z-index: 11;
   background: var(--b-table-bg);
 }
 
+/* Only sticky when column is pinned; unpinned (center) scrolls with content */
+.b-table__select-cell--pinned-left {
+  position: sticky;
+  z-index: 8;
+  background: var(--b-table-bg);
+}
+
+.b-table__select-cell--pinned-right {
+  position: sticky;
+  right: 0;
+  z-index: 8;
+  background: var(--b-table-bg);
+}
+
+.b-table__header-row .b-table__select-cell--pinned-left,
+.b-table__header-row .b-table__select-cell--pinned-right,
+.b-table__filter-row .b-table__select-cell--pinned-left,
+.b-table__filter-row .b-table__select-cell--pinned-right {
+  z-index: 9;
+  background: var(--b-table-header-bg);
+}
+
 .b-table__select-cell--empty {
+  background: var(--b-table-header-bg);
+}
+
+/* Checkbox header: match header row background and stacking; flex for checkbox + pin button */
+.b-table__header-row .b-table__header-select-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.5rem;
   background: var(--b-table-header-bg);
 }
 
@@ -312,6 +340,7 @@
   outline-offset: -2px;
 }
 
+/* First left column sticks at 0; subsequent left columns offset by previous widths (2.25rem = select column width when it is first) */
 .b-table__header-cell--pinned-left,
 .b-table__filter-cell--pinned-left {
   position: sticky;
@@ -320,11 +349,22 @@
   background: var(--b-table-header-bg);
 }
 
+.b-table__header-row > *:first-child.b-table__header-cell--pinned-left,
+.b-table__header-row > *:first-child.b-table__header-select-cell,
+.b-table__filter-row > *:first-child.b-table__filter-cell--pinned-left,
+.b-table__filter-row > *:first-child.b-table__select-cell {
+  left: 0;
+}
+
 .b-table__cell--pinned-left {
   position: sticky;
   left: 2.25rem;
   z-index: 8;
   background: var(--b-table-bg);
+}
+
+.b-table__pane--left .b-table__row > *:first-child {
+  left: 0;
 }
 
 .b-table__header-cell--pinned-right,

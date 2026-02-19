@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BrickCellContext, BrickRowData, BrickTableColumnDef, BrickTableRow } from './table-types';
+import { BRICK_SELECT_COLUMN_ID, BrickCellContext, BrickRowData, BrickTableColumnDef, BrickTableRow } from './table-types';
 import { displayValue as engineDisplayValue, rawValue as engineRawValue } from './table-engine';
 import { tableBodyCellVariants, toPinVariant } from './table-variants';
 
@@ -9,51 +9,70 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
   imports: [CommonModule],
   template: `
     <div class="b-table__row" role="row">
-      <div class="b-table__select-cell" role="gridcell">
-        <input
-          type="checkbox"
-          [checked]="isRowSelected()"
-          (click)="toggleSelection.emit({ rowIndex: row().sourceIndex, shiftKey: $event.shiftKey }); $event.stopPropagation()"
-          aria-label="Toggle row selection"
-        />
-      </div>
-
       @for (column of columns(); track column.id; let columnIndex = $index) {
-        <div
-          [class]="cellClasses(column, columnIndex)"
-          [style.width.px]="columnWidths()[column.id]"
-          role="gridcell"
-          [attr.data-nav-row]="visibleRowIndex()"
-          [attr.data-nav-col]="columnIndex"
-          [tabindex]="cellTabIndex(columnIndex)"
-          (focus)="onCellFocus(columnIndex)"
-          (keydown)="onCellKeydown($event, column.id, columnIndex)"
-          (keydown.enter)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
-          (dblclick)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
-        >
-          @if (isEditingCell(column.id) && column.editable === true) {
+        @if (column.id === BRICK_SELECT_COLUMN_ID) {
+          <div
+            class="b-table__select-cell"
+            [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
+            [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            role="gridcell"
+            [style.width.px]="columnWidths()[column.id]"
+            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.right.px]="column.pinned === 'right' ? 0 : null"
+            [attr.data-nav-row]="visibleRowIndex()"
+            [attr.data-nav-col]="columnIndex"
+            [tabindex]="cellTabIndex(columnIndex)"
+            (focus)="onCellFocus(columnIndex)"
+            (keydown)="onCellKeydown($event, column.id, columnIndex)"
+          >
             <input
-              class="b-table__editor"
-              [value]="displayValue(column, row().source)"
-              (keydown.enter)="commitEdit(column.id, $event)"
-              (keydown.escape)="cancelEdit.emit()"
-              (blur)="commitEdit(column.id, $event)"
+              type="checkbox"
+              [checked]="isRowSelected()"
+              (click)="toggleSelection.emit({ rowIndex: row().sourceIndex, shiftKey: $event.shiftKey }); $event.stopPropagation()"
+              aria-label="Toggle row selection"
             />
-          } @else {
-            {{ displayValue(column, row().source) }}
-          }
-        </div>
+          </div>
+        } @else {
+          <div
+            [class]="cellClasses(column, columnIndex)"
+            [style.width.px]="columnWidths()[column.id]"
+            [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            role="gridcell"
+            [attr.data-nav-row]="visibleRowIndex()"
+            [attr.data-nav-col]="columnIndex"
+            [tabindex]="cellTabIndex(columnIndex)"
+            (focus)="onCellFocus(columnIndex)"
+            (keydown)="onCellKeydown($event, column.id, columnIndex)"
+            (keydown.enter)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
+            (dblclick)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
+          >
+            @if (isEditingCell(column.id) && column.editable === true) {
+              <input
+                class="b-table__editor"
+                [value]="displayValue(column, row().source)"
+                (keydown.enter)="commitEdit(column.id, $event)"
+                (keydown.escape)="cancelEdit.emit()"
+                (blur)="commitEdit(column.id, $event)"
+              />
+            } @else {
+              {{ displayValue(column, row().source) }}
+            }
+          </div>
+        }
       }
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
+  protected readonly BRICK_SELECT_COLUMN_ID = BRICK_SELECT_COLUMN_ID;
   readonly row = input.required<BrickTableRow<T>>();
   readonly visibleRowIndex = input(0);
   readonly activeCell = input<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
   readonly columns = input<readonly BrickTableColumnDef<T>[]>([]);
   readonly columnWidths = input<Record<string, number>>({});
+  /** Cumulative left offset (px) per column id for left-pinned sticky positioning. */
+  readonly stickyLeftPx = input<Record<string, number>>({});
   readonly selectedIndices = input<readonly number[]>([]);
   readonly editingCell = input<{ rowIndex: number; columnId: string } | null>(null);
 

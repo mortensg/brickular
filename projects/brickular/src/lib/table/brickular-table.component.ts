@@ -16,6 +16,7 @@ import { BrickTableRowComponent } from './table-row.component';
 import { BrickTableToolbarComponent } from './table-toolbar.component';
 import { BrickTableFooterComponent } from './table-footer.component';
 import {
+  BRICK_SELECT_COLUMN_ID,
   BrickColumnPin,
   BrickCellEditEvent,
   BrickFilterValue,
@@ -63,6 +64,7 @@ import {
           <b-table-header
             [columns]="renderedColumns()"
             [columnWidths]="resolvedColumnWidths()"
+            [stickyLeftPx]="stickyLeftPx()"
             [allVisibleSelected]="allVisibleSelected()"
             [someVisibleSelected]="someVisibleSelected()"
             [sortIndicator]="sortIndicatorForHeader"
@@ -103,6 +105,7 @@ import {
                         [visibleRowIndex]="visibleRowIndex"
                         [columns]="leftColumns()"
                         [columnWidths]="resolvedColumnWidths()"
+                        [stickyLeftPx]="stickyLeftPx()"
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
@@ -132,6 +135,7 @@ import {
                         [visibleRowIndex]="visibleRowIndex"
                         [columns]="centerColumns()"
                         [columnWidths]="resolvedColumnWidths()"
+                        [stickyLeftPx]="stickyLeftPx()"
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
@@ -156,6 +160,7 @@ import {
                         [visibleRowIndex]="visibleRowIndex"
                         [columns]="rightColumns()"
                         [columnWidths]="resolvedColumnWidths()"
+                        [stickyLeftPx]="stickyLeftPx()"
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
@@ -266,9 +271,38 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly headerMenuColumnId = signal<string | null>(null);
   protected readonly headerMenuPosition = signal<{ x: number; y: number }>({ x: 0, y: 0 });
   protected readonly headerMenuVisible = signal(false);
+  /** Tracks last column set we initialized from, so we only reset order/pin/width when columns actually change. */
+  private readonly lastInitColumnKey = signal<string>('');
+
+  /** Column defs with built-in selection column prepended when selection is enabled. Selection column is a normal column, pinned left by default. */
+  protected readonly effectiveColumnDefs = computed((): readonly BrickTableColumnDef<T>[] => {
+    const mode = this.selectionMode();
+    if (mode !== 'single' && mode !== 'multiple') {
+      return this.columnDefs();
+    }
+    const selectColumn: BrickTableColumnDef<T> = {
+      id: BRICK_SELECT_COLUMN_ID,
+      header: '',
+      pinned: 'left',
+      pinnable: true,
+      width: 36,
+      minWidth: 36,
+      maxWidth: 36,
+      sortable: false,
+      filterable: false,
+      resizable: false,
+      editable: false,
+    };
+    return [selectColumn, ...this.columnDefs()];
+  });
 
   protected readonly renderedColumns = computed(() => {
-    return resolveRenderedColumns(this.columnDefs(), this.hiddenColumns(), this.headerOrder(), this.pinnedColumns());
+    return resolveRenderedColumns(
+      this.effectiveColumnDefs(),
+      this.hiddenColumns(),
+      this.headerOrder(),
+      this.pinnedColumns(),
+    );
   });
 
   protected readonly filteredRows = computed<readonly BrickTableRow<T>[]>(() => {
@@ -302,18 +336,32 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly centerColumns = computed(() =>
     this.renderedColumns().filter((column) => !column.pinned),
   );
+
+  /** Cumulative left offset (px) for each left-pinned column for sticky positioning. First left column gets 0, second gets width(first), etc. */
+  protected readonly stickyLeftPx = computed(() => {
+    const columns = this.renderedColumns();
+    const widths = this.resolvedColumnWidths();
+    const result: Record<string, number> = {};
+    let left = 0;
+    for (const column of columns) {
+      if (column.pinned === 'left') {
+        result[column.id] = left;
+        left += widths[column.id] ?? column.width ?? 160;
+      }
+    }
+    return result;
+  });
+
   protected readonly leftPaneWidth = computed(() => {
     const widths = this.resolvedColumnWidths();
     const left = this.leftColumns();
     if (left.length === 0) {
       return 0;
     }
-    const selectionWidthPx = 36;
-    const columnsWidth = left.reduce(
+    return left.reduce(
       (sum, column) => sum + (widths[column.id] ?? column.width ?? 160),
       0,
     );
-    return selectionWidthPx + columnsWidth;
   });
   protected readonly rightPaneWidth = computed(() => {
     const widths = this.resolvedColumnWidths();
@@ -353,9 +401,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       return widths;
     }
 
-    const selectionWidthPx = 36;
     const baseTotal = columns.reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
-    const extra = viewportWidth - (baseTotal + selectionWidthPx);
+    const extra = viewportWidth - baseTotal;
     if (extra <= 0) {
       return widths;
     }
@@ -388,11 +435,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (columns.length === 0) {
       return 0;
     }
-    const selectionWidthPx = 36;
-    const pinnedWidth = columns
+    return columns
       .filter((column) => column.pinned === 'left')
       .reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
-    return pinnedWidth > 0 ? selectionWidthPx + pinnedWidth : selectionWidthPx;
   });
 
   protected readonly rightPinnedScrollbarWidth = computed(() => {
@@ -419,10 +464,17 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
   constructor() {
     effect(() => {
-      const defs = this.columnDefs();
+      const defs = this.effectiveColumnDefs();
       if (defs.length === 0) {
         return;
       }
+      const columnIdsKey = defs.map((c) => c.id).join(',');
+      const prevKey = this.lastInitColumnKey();
+      if (columnIdsKey === prevKey) {
+        return;
+      }
+      const keyExpanded = prevKey !== '' && columnIdsKey.startsWith(prevKey + ',');
+      this.lastInitColumnKey.set(columnIdsKey);
 
       this.headerOrder.set(defs.map((column) => column.id));
       this.columnWidths.set(
@@ -431,18 +483,39 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           return acc;
         }, {}),
       );
-      this.pinnedColumns.set(
-        defs.reduce<Record<string, BrickColumnPin | undefined>>((acc, column) => {
-          acc[column.id] = column.pinned;
-          return acc;
-        }, {}),
-      );
-      this.hiddenColumns.set(
-        defs.reduce<Record<string, boolean>>((acc, column) => {
-          acc[column.id] = Boolean(column.hidden);
-          return acc;
-        }, {}),
-      );
+      if (keyExpanded) {
+        this.pinnedColumns.update((current) => {
+          const next: Record<string, BrickColumnPin | undefined> = { ...current };
+          for (const column of defs) {
+            if (!Object.prototype.hasOwnProperty.call(next, column.id)) {
+              next[column.id] = column.pinned;
+            }
+          }
+          return next;
+        });
+        this.hiddenColumns.update((current) => {
+          const next: Record<string, boolean> = { ...current };
+          for (const column of defs) {
+            if (!Object.prototype.hasOwnProperty.call(next, column.id)) {
+              next[column.id] = Boolean(column.hidden);
+            }
+          }
+          return next;
+        });
+      } else {
+        this.pinnedColumns.set(
+          defs.reduce<Record<string, BrickColumnPin | undefined>>((acc, column) => {
+            acc[column.id] = column.pinned;
+            return acc;
+          }, {}),
+        );
+        this.hiddenColumns.set(
+          defs.reduce<Record<string, boolean>>((acc, column) => {
+            acc[column.id] = Boolean(column.hidden);
+            return acc;
+          }, {}),
+        );
+      }
     });
 
     effect((onCleanup) => {
