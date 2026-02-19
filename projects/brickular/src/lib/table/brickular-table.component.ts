@@ -1141,12 +1141,27 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   private scrollRowIntoView(pagedRowIndex: number): void {
-    const range = this.visibleRange();
-    if (pagedRowIndex >= range.start && pagedRowIndex < range.end) {
+    const rowH = this.rowHeight();
+    const viewportH = this.viewportHeight();
+    const currentScrollTop = this.scrollTop();
+
+    const rowTop = pagedRowIndex * rowH;
+    const rowBottom = rowTop + rowH;
+    const viewportTop = currentScrollTop;
+    const viewportBottom = currentScrollTop + viewportH;
+
+    let newScrollTop = currentScrollTop;
+
+    if (rowTop < viewportTop) {
+      newScrollTop = Math.max(0, rowTop - rowH * 0.5);
+    } else if (rowBottom > viewportBottom) {
+      newScrollTop = Math.max(0, rowBottom - viewportH + rowH * 0.5);
+    }
+
+    if (Math.abs(newScrollTop - currentScrollTop) < 1) {
       return;
     }
-    const rowH = this.rowHeight();
-    const newScrollTop = Math.max(0, pagedRowIndex * rowH - rowH * 0.5);
+
     this.scrollTop.set(newScrollTop);
     const vBar = this.verticalScrollbar()?.nativeElement;
     if (vBar) {
