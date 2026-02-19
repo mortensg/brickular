@@ -21,6 +21,10 @@
   --b-table-selected-bg: var(--b-selected-bg, #dbeafe);
   --b-table-hover-bg: var(--b-hover-bg, #f9fafb);
   --b-row-height: 40px;
+  /* Scrollbar theme: override --b-scrollbar-track / --b-scrollbar-thumb / --b-scrollbar-thumb-hover to match theme */
+  --b-scrollbar-track: var(--b-table-header-bg);
+  --b-scrollbar-thumb: var(--b-table-border);
+  --b-scrollbar-thumb-hover: var(--b-table-fg);
 
   display: grid;
   gap: 0.75rem;
@@ -47,8 +51,26 @@
   grid-template-rows: auto minmax(0, 560px);
 }
 
+.b-table__head-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
 .b-table__head-scroller {
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
+  border-bottom: 1px solid var(--b-table-border);
+}
+
+/* Corner above vertical scrollbar: header bg to match header row */
+.b-table__scrollbar-v-corner {
+  flex: 0 0 auto;
+  width: var(--b-scrollbar-width, 0.875rem);
+  min-width: 0.875rem;
+  background: var(--b-table-header-bg);
+  border-left: 1px solid var(--b-table-border);
   border-bottom: 1px solid var(--b-table-border);
 }
 
@@ -78,16 +100,22 @@
   overflow: hidden;
 }
 
-/* Row window: fixed height, contains panes; vertical “scroll” is done by rendering visibleRows slice only */
+/* Row window: fixed height viewport; inner is offset by translateY so visible rows align (no clipping) */
 .b-table__row-window {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.b-table__row-window-inner {
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
   width: 100%;
+  min-height: 100%;
 }
 
 /* Vertical scrollbar: fixed width, fills body-row height, scrolls via spacer height */
@@ -97,11 +125,30 @@
   min-width: 0.875rem;
   overflow-y: scroll;
   overflow-x: hidden;
-  background: var(--b-table-bg);
+  background: var(--b-table-header-bg);
   border-left: 1px solid var(--b-table-border);
+  scrollbar-color: var(--b-scrollbar-thumb) var(--b-scrollbar-track);
+  scrollbar-width: thin;
 }
 
-/* Horizontal scrollbar row: fixed height, sits below body-row */
+.b-table__scrollbar-v::-webkit-scrollbar {
+  width: var(--b-scrollbar-width, 0.875rem);
+}
+
+.b-table__scrollbar-v::-webkit-scrollbar-track {
+  background: var(--b-scrollbar-track);
+}
+
+.b-table__scrollbar-v::-webkit-scrollbar-thumb {
+  background: var(--b-scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+.b-table__scrollbar-v::-webkit-scrollbar-thumb:hover {
+  background: var(--b-scrollbar-thumb-hover);
+}
+
+/* Horizontal scrollbar row: fixed height, sits below body-row; header bg for spacer strip */
 .b-table__scrollbar-h-row {
   display: flex;
   flex: 0 0 auto;
@@ -110,12 +157,21 @@
   min-width: 0;
   width: 100%;
   border-top: 1px solid var(--b-table-border);
+  background: var(--b-table-header-bg);
 }
 
 .b-table__scrollbar-h-spacer {
   flex: 0 0 auto;
   min-width: 0;
-  background: var(--b-table-bg);
+  background: var(--b-table-header-bg);
+}
+
+/* Reserve space for vertical scrollbar so horizontal scrollbar row aligns with grid (left/center/right panes). */
+.b-table__scrollbar-h-v-gap {
+  flex: 0 0 auto;
+  width: var(--b-scrollbar-width, 0.875rem);
+  min-width: 0;
+  background: var(--b-table-header-bg);
 }
 
 /* Horizontal scrollbar: flex 1 so it only takes remaining space; wide spacer inside scrolls. */
@@ -124,8 +180,27 @@
   min-width: 0;
   overflow-x: scroll;
   overflow-y: hidden;
-  background: var(--b-table-bg);
+  background: var(--b-table-header-bg);
   max-width: 100%;
+  scrollbar-color: var(--b-scrollbar-thumb) var(--b-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.b-table__scrollbar-h::-webkit-scrollbar {
+  height: 1rem;
+}
+
+.b-table__scrollbar-h::-webkit-scrollbar-track {
+  background: var(--b-scrollbar-track);
+}
+
+.b-table__scrollbar-h::-webkit-scrollbar-thumb {
+  background: var(--b-scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+.b-table__scrollbar-h::-webkit-scrollbar-thumb:hover {
+  background: var(--b-scrollbar-thumb-hover);
 }
 
 .b-table__spacer-h {
@@ -207,10 +282,39 @@
 .b-table__cell,
 .b-table__filter-cell,
 .b-table__select-cell {
-  border-right: 1px solid var(--b-table-border);
   border-bottom: 1px solid var(--b-table-border);
   min-height: var(--b-row-height);
   box-sizing: border-box;
+}
+
+/* Always: vertical borders between header and filter cells */
+.b-table__header-row .b-table__header-cell,
+.b-table__header-row .b-table__select-cell,
+.b-table__filter-row .b-table__filter-cell,
+.b-table__filter-row .b-table__select-cell {
+  border-right: 1px solid var(--b-table-border);
+}
+
+/* Optional: vertical borders between every body cell */
+.b-table--vertical-borders .b-table__cell,
+.b-table--vertical-borders .b-table__select-cell {
+  border-right: 1px solid var(--b-table-border);
+}
+
+/* Always: border where left pane ends (right edge of last left column) */
+.b-table__header-cell--left-boundary,
+.b-table__cell--left-boundary,
+.b-table__filter-cell--left-boundary,
+.b-table__select-cell--left-boundary {
+  border-right: 1px solid var(--b-table-border);
+}
+
+/* Always: border where right pane starts (left edge of first right column) */
+.b-table__header-cell--right-boundary,
+.b-table__cell--right-boundary,
+.b-table__filter-cell--right-boundary,
+.b-table__select-cell--right-boundary {
+  border-left: 1px solid var(--b-table-border);
 }
 
 .b-table__header-cell,
@@ -263,14 +367,6 @@
   cursor: col-resize;
 }
 
-.b-table__pin-button {
-  border: 1px solid var(--b-table-border);
-  border-radius: 0.3rem;
-  background: transparent;
-  padding: 0.1rem 0.35rem;
-  font-size: 0.75rem;
-}
-
 .b-table__sort-indicator {
   margin-left: auto;
   min-width: 0.9rem;
@@ -310,7 +406,7 @@
   background: var(--b-table-header-bg);
 }
 
-/* Checkbox header: match header row background and stacking; flex for checkbox + pin button */
+/* Checkbox header: match header row background and stacking */
 .b-table__header-row .b-table__header-select-cell {
   display: flex;
   align-items: center;
@@ -323,11 +419,31 @@
   background: var(--b-table-selected-bg);
 }
 
-.b-table__row:hover .b-table__cell {
+.b-table__select-cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
+.b-table__row:hover .b-table__cell,
+.b-table__row--hovered .b-table__cell {
   background: var(--b-table-hover-bg);
 }
 
-.b-table__row:hover .b-table__cell--selected {
+.b-table__row:hover .b-table__cell--selected,
+.b-table__row--hovered .b-table__cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
+.b-table__row:hover .b-table__select-cell,
+.b-table__row--hovered .b-table__select-cell {
+  background: var(--b-table-hover-bg);
+}
+
+.b-table__row--hovered .b-table__select-cell--empty {
+  background: var(--b-table-hover-bg);
+}
+
+.b-table__row:hover .b-table__select-cell--selected,
+.b-table__row--hovered .b-table__select-cell--selected {
   background: var(--b-table-selected-bg);
 }
 
@@ -382,9 +498,41 @@
   background: var(--b-table-bg);
 }
 
+/* Selected row: show selected background in pinned columns too (all panes). */
+.b-table__cell--pinned-left.b-table__cell--selected,
+.b-table__cell--pinned-right.b-table__cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
+.b-table__select-cell--pinned-left.b-table__select-cell--selected,
+.b-table__select-cell--pinned-right.b-table__select-cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
+/* Hover on pinned segments (same row in left/right pane) so hover is visible in pinned columns. */
+.b-table__row--hovered .b-table__cell--pinned-left,
+.b-table__row--hovered .b-table__cell--pinned-right,
+.b-table__row--hovered .b-table__select-cell--pinned-left,
+.b-table__row--hovered .b-table__select-cell--pinned-right {
+  background: var(--b-table-hover-bg);
+}
+
+/* Hovered + selected: keep selected background on checkbox column (all panes). */
+.b-table__row--hovered .b-table__select-cell--pinned-left.b-table__select-cell--selected,
+.b-table__row--hovered .b-table__select-cell--pinned-right.b-table__select-cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
+.b-table__row--hovered .b-table__cell--pinned-left.b-table__cell--selected,
+.b-table__row--hovered .b-table__cell--pinned-right.b-table__cell--selected {
+  background: var(--b-table-selected-bg);
+}
+
 .b-table__header-cell:focus-visible,
 .b-table__cell:focus,
 .b-table__cell:focus-visible,
+.b-table__select-cell:focus,
+.b-table__select-cell:focus-visible,
 .b-table__editor:focus-visible,
 .b-table__toolbar input:focus-visible,
 .b-table__toolbar select:focus-visible {

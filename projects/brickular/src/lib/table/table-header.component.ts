@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BRICK_SELECT_COLUMN_ID, BrickColumnPin, BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
+import { BRICK_SELECT_COLUMN_ID, BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
 import { resolveFilterType as engineResolveFilterType } from './table-engine';
 import { tableHeaderCellVariants, toPinVariant } from './table-variants';
 
@@ -16,10 +16,12 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             class="b-table__select-cell b-table__header-select-cell"
             [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
             [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
+            [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
             role="columnheader"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-            [style.right.px]="column.pinned === 'right' ? 0 : null"
+            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
             draggable="true"
             tabindex="0"
             (contextmenu)="onHeaderContextMenu($event, column)"
@@ -35,21 +37,15 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
               (click)="$event.stopPropagation()"
               aria-label="Select visible rows"
             />
-            <button
-              type="button"
-              class="b-table__pin-button"
-              [disabled]="column.pinnable === false"
-              (click)="cyclePinned.emit(column.id); $event.stopPropagation()"
-              aria-label="Pin selection column"
-            >
-              {{ pinnedLabel(column.pinned) }}
-            </button>
           </div>
         } @else {
           <div
             [class]="headerCellClass(column)"
+            [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
+            [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
             [style.minWidth.px]="column.minWidth ?? 80"
             [style.maxWidth.px]="column.maxWidth ?? 600"
             [title]="column.tooltip ?? column.header"
@@ -63,15 +59,6 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             (drop)="headerDrop.emit(column.id)"
           >
             <span>{{ column.header }}</span>
-            <button
-              type="button"
-              class="b-table__pin-button"
-              [disabled]="column.pinnable === false"
-              (click)="cyclePinned.emit(column.id); $event.stopPropagation()"
-              [attr.aria-label]="'Pin column ' + column.header"
-            >
-              {{ pinnedLabel(column.pinned) }}
-            </button>
             <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
             @if (column.resizable !== false) {
               <button
@@ -95,10 +82,12 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             class="b-table__select-cell b-table__select-cell--empty"
             [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
             [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            [class.b-table__filter-cell--left-boundary]="column.id === lastLeftColumnId()"
+            [class.b-table__filter-cell--right-boundary]="column.id === firstRightColumnId()"
             role="gridcell"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-            [style.right.px]="column.pinned === 'right' ? 0 : null"
+            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
           ></div>
         } @else {
         <div
@@ -106,8 +95,11 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
           role="gridcell"
           [class.b-table__filter-cell--pinned-left]="column.pinned === 'left'"
           [class.b-table__filter-cell--pinned-right]="column.pinned === 'right'"
+          [class.b-table__filter-cell--left-boundary]="column.id === lastLeftColumnId()"
+          [class.b-table__filter-cell--right-boundary]="column.id === firstRightColumnId()"
           [style.width.px]="columnWidths()[column.id]"
           [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+          [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
           [style.minWidth.px]="column.minWidth ?? 80"
           [style.maxWidth.px]="column.maxWidth ?? 600"
         >
@@ -172,6 +164,9 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly columnWidths = input<Record<string, number>>({});
   /** Cumulative left offset (px) per column id for left-pinned sticky positioning. */
   readonly stickyLeftPx = input<Record<string, number>>({});
+  readonly stickyRightPx = input<Record<string, number>>({});
+  readonly lastLeftColumnId = input<string | null>(null);
+  readonly firstRightColumnId = input<string | null>(null);
   readonly allVisibleSelected = input(false);
   readonly someVisibleSelected = input(false);
   readonly sortIndicator = input<(columnId: string) => string>(() => '');
@@ -182,7 +177,6 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly headerDragStart = output<{ columnId: string; event: DragEvent }>();
   readonly headerDrop = output<string>();
   readonly resizeStart = output<{ columnId: string; event: MouseEvent }>();
-  readonly cyclePinned = output<string>();
   readonly headerContextMenu = output<{ columnId: string; x: number; y: number }>();
   readonly textFilterChange = output<{ columnId: string; value: string }>();
   readonly numberFilterChange = output<{ columnId: string; edge: 'min' | 'max'; value?: number }>();
@@ -263,15 +257,5 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
       edge,
       value: value || undefined,
     });
-  }
-
-  protected pinnedLabel(pinned: BrickColumnPin | undefined): string {
-    if (pinned === 'left') {
-      return 'L';
-    }
-    if (pinned === 'right') {
-      return 'R';
-    }
-    return '-';
   }
 }

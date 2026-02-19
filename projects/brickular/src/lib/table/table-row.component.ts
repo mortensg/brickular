@@ -8,22 +8,32 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
   selector: 'b-table-row',
   imports: [CommonModule],
   template: `
-    <div class="b-table__row" role="row">
+    <div
+      class="b-table__row"
+      [class.b-table__row--hovered]="isRowHovered()"
+      role="row"
+      (mouseenter)="rowMouseEnter.emit()"
+      (mouseleave)="rowMouseLeave.emit()"
+    >
       @for (column of columns(); track column.id; let columnIndex = $index) {
         @if (column.id === BRICK_SELECT_COLUMN_ID) {
           <div
             class="b-table__select-cell"
             [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
             [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+            [class.b-table__select-cell--selected]="isRowSelected()"
+            [class.b-table__cell--active]="isActiveCell(globalColumnIndex(columnIndex))"
+            [class.b-table__select-cell--left-boundary]="panePosition() === 'left' && columnIndex === columns().length - 1"
+            [class.b-table__select-cell--right-boundary]="panePosition() === 'right' && columnIndex === 0"
             role="gridcell"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
-            [style.right.px]="column.pinned === 'right' ? 0 : null"
+            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
             [attr.data-nav-row]="visibleRowIndex()"
-            [attr.data-nav-col]="columnIndex"
-            [tabindex]="cellTabIndex(columnIndex)"
-            (focus)="onCellFocus(columnIndex)"
-            (keydown)="onCellKeydown($event, column.id, columnIndex)"
+            [attr.data-nav-col]="globalColumnIndex(columnIndex)"
+            [tabindex]="cellTabIndex(globalColumnIndex(columnIndex))"
+            (focus)="onCellFocus(globalColumnIndex(columnIndex))"
+            (keydown)="onCellKeydown($event, column.id, globalColumnIndex(columnIndex))"
           >
             <input
               type="checkbox"
@@ -34,15 +44,18 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
           </div>
         } @else {
           <div
-            [class]="cellClasses(column, columnIndex)"
+            [class]="cellClasses(column, globalColumnIndex(columnIndex))"
+            [class.b-table__cell--left-boundary]="panePosition() === 'left' && columnIndex === columns().length - 1"
+            [class.b-table__cell--right-boundary]="panePosition() === 'right' && columnIndex === 0"
             [style.width.px]="columnWidths()[column.id]"
             [style.left.px]="column.pinned === 'left' ? (stickyLeftPx()[column.id] ?? 0) : null"
+            [style.right.px]="column.pinned === 'right' ? (stickyRightPx()[column.id] ?? 0) : null"
             role="gridcell"
             [attr.data-nav-row]="visibleRowIndex()"
-            [attr.data-nav-col]="columnIndex"
-            [tabindex]="cellTabIndex(columnIndex)"
-            (focus)="onCellFocus(columnIndex)"
-            (keydown)="onCellKeydown($event, column.id, columnIndex)"
+            [attr.data-nav-col]="globalColumnIndex(columnIndex)"
+            [tabindex]="cellTabIndex(globalColumnIndex(columnIndex))"
+            (focus)="onCellFocus(globalColumnIndex(columnIndex))"
+            (keydown)="onCellKeydown($event, column.id, globalColumnIndex(columnIndex))"
             (keydown.enter)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
             (dblclick)="startEdit.emit({ rowIndex: row().sourceIndex, columnId: column.id })"
           >
@@ -68,11 +81,18 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   protected readonly BRICK_SELECT_COLUMN_ID = BRICK_SELECT_COLUMN_ID;
   readonly row = input.required<BrickTableRow<T>>();
   readonly visibleRowIndex = input(0);
+  /** When true, row shows hover styling (used so left/center/right segments stay in sync). */
+  readonly isRowHovered = input(false);
   readonly activeCell = input<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
   readonly columns = input<readonly BrickTableColumnDef<T>[]>([]);
+  /** Offset to add to pane column index to get global column index (for keyboard nav across panes). */
+  readonly columnIndexOffset = input(0);
+  /** Which pane this row segment belongs to (for boundary borders). */
+  readonly panePosition = input<'left' | 'center' | 'right'>('center');
   readonly columnWidths = input<Record<string, number>>({});
   /** Cumulative left offset (px) per column id for left-pinned sticky positioning. */
   readonly stickyLeftPx = input<Record<string, number>>({});
+  readonly stickyRightPx = input<Record<string, number>>({});
   readonly selectedIndices = input<readonly number[]>([]);
   readonly editingCell = input<{ rowIndex: number; columnId: string } | null>(null);
 
@@ -82,6 +102,8 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly cancelEdit = output<void>();
   readonly cellKeydown = output<{ rowIndex: number; columnId: string; columnIndex: number; key: string; shiftKey: boolean }>();
   readonly cellFocus = output<{ rowIndex: number; columnIndex: number }>();
+  readonly rowMouseEnter = output<void>();
+  readonly rowMouseLeave = output<void>();
 
   protected isRowSelected(): boolean {
     return this.selectedIndices().includes(this.row().sourceIndex);
@@ -120,7 +142,11 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     });
   }
 
-  protected onCellKeydown(event: KeyboardEvent, columnId: string, columnIndex: number): void {
+  protected globalColumnIndex(paneColumnIndex: number): number {
+    return this.columnIndexOffset() + paneColumnIndex;
+  }
+
+  protected onCellKeydown(event: KeyboardEvent, columnId: string, globalColumnIndex: number): void {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
       return;
     }
@@ -133,7 +159,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
       this.cellKeydown.emit({
         rowIndex: this.visibleRowIndex(),
         columnId,
-        columnIndex,
+        columnIndex: globalColumnIndex,
         key: event.key,
         shiftKey: event.shiftKey,
       });
@@ -144,7 +170,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
       this.cellKeydown.emit({
         rowIndex: this.visibleRowIndex(),
         columnId,
-        columnIndex,
+        columnIndex: globalColumnIndex,
         key: event.key,
         shiftKey: event.shiftKey,
       });
@@ -159,26 +185,26 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     this.cellKeydown.emit({
       rowIndex: this.visibleRowIndex(),
       columnId,
-      columnIndex,
+      columnIndex: globalColumnIndex,
       key: event.key,
       shiftKey: event.shiftKey,
     });
   }
 
-  protected cellTabIndex(columnIndex: number): number {
-    return this.isActiveCell(columnIndex) ? 0 : -1;
+  protected cellTabIndex(globalColumnIndex: number): number {
+    return this.isActiveCell(globalColumnIndex) ? 0 : -1;
   }
 
-  protected onCellFocus(columnIndex: number): void {
+  protected onCellFocus(globalColumnIndex: number): void {
     this.cellFocus.emit({
       rowIndex: this.visibleRowIndex(),
-      columnIndex,
+      columnIndex: globalColumnIndex,
     });
   }
 
-  private isActiveCell(columnIndex: number): boolean {
+  protected isActiveCell(globalColumnIndex: number): boolean {
     const active = this.activeCell();
-    return active.rowIndex === this.visibleRowIndex() && active.columnIndex === columnIndex;
+    return active.rowIndex === this.visibleRowIndex() && active.columnIndex === globalColumnIndex;
   }
 
   private resolveCustomCellClass(column: BrickTableColumnDef<T>): string {

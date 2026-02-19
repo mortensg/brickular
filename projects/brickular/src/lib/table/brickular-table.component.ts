@@ -59,12 +59,21 @@ import {
         (pageSizeChange)="onPageSizeChange($event)"
       />
 
-      <div class="b-table__scroll-shell" role="grid" [attr.aria-rowcount]="filteredRows().length">
-        <div #headScroller class="b-table__head-scroller" (wheel)="onHeaderWheel($event)">
-          <b-table-header
+      <div
+        class="b-table__scroll-shell"
+        [class.b-table--vertical-borders]="showVerticalBorders()"
+        role="grid"
+        [attr.aria-rowcount]="filteredRows().length"
+      >
+        <div class="b-table__head-row">
+          <div #headScroller class="b-table__head-scroller" (wheel)="onHeaderWheel($event)">
+            <b-table-header
             [columns]="renderedColumns()"
             [columnWidths]="resolvedColumnWidths()"
             [stickyLeftPx]="stickyLeftPx()"
+            [stickyRightPx]="stickyRightPx()"
+            [lastLeftColumnId]="lastLeftColumnId()"
+            [firstRightColumnId]="firstRightColumnId()"
             [allVisibleSelected]="allVisibleSelected()"
             [someVisibleSelected]="someVisibleSelected()"
             [sortIndicator]="sortIndicatorForHeader"
@@ -74,12 +83,13 @@ import {
             (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
             (headerDrop)="onHeaderDrop($event)"
             (resizeStart)="startResizeById($event.columnId, $event.event)"
-            (cyclePinned)="cyclePinned($event)"
             (headerContextMenu)="openHeaderContextMenu($event.columnId, $event.x, $event.y)"
             (textFilterChange)="setTextFilter($event.columnId, $event.value)"
             (numberFilterChange)="setNumberFilter($event.columnId, $event.edge, $event.value)"
             (dateFilterChange)="setDateFilter($event.columnId, $event.edge, $event.value)"
           />
+          </div>
+          <div class="b-table__scrollbar-v-corner" aria-hidden="true"></div>
         </div>
 
         <div class="b-table__body" [style.--b-row-height.px]="rowHeight()">
@@ -89,11 +99,16 @@ import {
               class="b-table__grid-area"
               (wheel)="onGridWheel($event)"
             >
-              <!-- Row window: we render visibleRows (slice for scroll position), so no translateY needed -->
+              <!-- Row window: inner offset so visible rows are positioned correctly (no clipping of last rows) -->
               <div
                 class="b-table__row-window"
                 [style.height.px]="viewportHeight()"
               >
+                <div
+                  class="b-table__row-window-inner"
+                  [style.height.px]="visibleRows().length * rowHeight()"
+                  [style.transform]="'translateY(' + ((visibleRange().start * rowHeight()) - scrollTop()) + 'px)'"
+                >
                 @if (leftColumns().length > 0) {
                   <div
                     class="b-table__pane b-table__pane--left"
@@ -103,9 +118,13 @@ import {
                       <b-table-row
                         [row]="row"
                         [visibleRowIndex]="visibleRowIndex"
+                        [columnIndexOffset]="0"
+                        [isRowHovered]="hoveredVisibleRowIndex() === visibleRowIndex"
                         [columns]="leftColumns()"
+                        [panePosition]="'left'"
                         [columnWidths]="resolvedColumnWidths()"
                         [stickyLeftPx]="stickyLeftPx()"
+                        [stickyRightPx]="stickyRightPx()"
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
@@ -115,6 +134,8 @@ import {
                         (cancelEdit)="cancelEdit()"
                         (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
                         (cellKeydown)="onCellKeydown($event)"
+                        (rowMouseEnter)="onRowMouseEnter(visibleRowIndex)"
+                        (rowMouseLeave)="onRowMouseLeave()"
                       />
                     }
                   </div>
@@ -133,9 +154,13 @@ import {
                       <b-table-row
                         [row]="row"
                         [visibleRowIndex]="visibleRowIndex"
+                        [columnIndexOffset]="leftColumns().length"
+                        [isRowHovered]="hoveredVisibleRowIndex() === visibleRowIndex"
                         [columns]="centerColumns()"
+                        [panePosition]="'center'"
                         [columnWidths]="resolvedColumnWidths()"
                         [stickyLeftPx]="stickyLeftPx()"
+                        [stickyRightPx]="stickyRightPx()"
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
@@ -145,6 +170,8 @@ import {
                         (cancelEdit)="cancelEdit()"
                         (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
                         (cellKeydown)="onCellKeydown($event)"
+                        (rowMouseEnter)="onRowMouseEnter(visibleRowIndex)"
+                        (rowMouseLeave)="onRowMouseLeave()"
                       />
                     }
                   </div>
@@ -158,9 +185,13 @@ import {
                       <b-table-row
                         [row]="row"
                         [visibleRowIndex]="visibleRowIndex"
+                        [columnIndexOffset]="leftColumns().length + centerColumns().length"
+                        [isRowHovered]="hoveredVisibleRowIndex() === visibleRowIndex"
                         [columns]="rightColumns()"
+                        [panePosition]="'right'"
                         [columnWidths]="resolvedColumnWidths()"
                         [stickyLeftPx]="stickyLeftPx()"
+                        [stickyRightPx]="stickyRightPx()"
                         [selectedIndices]="selectedIndices()"
                         [editingCell]="editingCell()"
                         [activeCell]="activeCell()"
@@ -170,10 +201,13 @@ import {
                         (cancelEdit)="cancelEdit()"
                         (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
                         (cellKeydown)="onCellKeydown($event)"
+                        (rowMouseEnter)="onRowMouseEnter(visibleRowIndex)"
+                        (rowMouseLeave)="onRowMouseLeave()"
                       />
                     }
                   </div>
                 }
+                </div>
               </div>
             </div>
             <div
@@ -194,6 +228,7 @@ import {
               <div class="b-table__spacer-h" [style.width.px]="centerColumnsTotalWidth()"></div>
             </div>
             <div class="b-table__scrollbar-h-spacer" [style.width.px]="rightPaneWidth()"></div>
+            <div class="b-table__scrollbar-h-v-gap" aria-hidden="true"></div>
           </div>
         </div>
 
@@ -238,6 +273,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly rowHeight = input(40);
   readonly quickFilterPlaceholder = input('Search table...');
   readonly selectionMode = input<BrickSelectionMode>('multiple');
+  /** When true, show vertical borders between all columns. When false (default), only show borders at left/right pane edges. */
+  readonly showVerticalBorders = input(false);
 
   readonly selectionChange = output<BrickSelectionChange<T>>();
   readonly sortChange = output<readonly BrickSortState[]>();
@@ -262,11 +299,13 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly dragColumnId = signal<string | null>(null);
   private readonly isResizing = signal(false);
   private readonly resizeEndedAt = signal(0);
-  private readonly scrollTop = signal(0);
+  protected readonly scrollTop = signal(0);
   protected readonly centerScrollLeft = signal(0);
   protected readonly viewportHeight = signal(540);
   private readonly viewportWidth = signal(0);
   private readonly lastSelectedIndex = signal<number | null>(null);
+  /** Tracks which visible row index is hovered so left/center/right segments all show hover. */
+  protected readonly hoveredVisibleRowIndex = signal<number | null>(null);
   protected readonly sortIndicatorForHeader = (columnId: string): string => this.sortIndicator(columnId);
   private readonly headerMenuColumnId = signal<string | null>(null);
   protected readonly headerMenuPosition = signal<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -336,6 +375,14 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly centerColumns = computed(() =>
     this.renderedColumns().filter((column) => !column.pinned),
   );
+  protected readonly lastLeftColumnId = computed(() => {
+    const left = this.leftColumns();
+    return left.length > 0 ? left[left.length - 1].id : null;
+  });
+  protected readonly firstRightColumnId = computed(() => {
+    const right = this.rightColumns();
+    return right.length > 0 ? right[0].id : null;
+  });
 
   /** Cumulative left offset (px) for each left-pinned column for sticky positioning. First left column gets 0, second gets width(first), etc. */
   protected readonly stickyLeftPx = computed(() => {
@@ -348,6 +395,20 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
         result[column.id] = left;
         left += widths[column.id] ?? column.width ?? 160;
       }
+    }
+    return result;
+  });
+
+  /** Cumulative right offset (px) for each right-pinned column for sticky positioning. Rightmost column gets 0, next gets width(rightmost), etc. */
+  protected readonly stickyRightPx = computed(() => {
+    const right = this.rightColumns();
+    const widths = this.resolvedColumnWidths();
+    const result: Record<string, number> = {};
+    let offset = 0;
+    for (let i = right.length - 1; i >= 0; i--) {
+      const column = right[i];
+      result[column.id] = offset;
+      offset += widths[column.id] ?? column.width ?? 160;
     }
     return result;
   });
@@ -954,9 +1015,17 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.activeCell.set({ rowIndex, columnIndex });
   }
 
+  protected onRowMouseEnter(visibleRowIndex: number): void {
+    this.hoveredVisibleRowIndex.set(visibleRowIndex);
+  }
+
+  protected onRowMouseLeave(): void {
+    this.hoveredVisibleRowIndex.set(null);
+  }
+
   private focusCell(rowIndex: number, columnIndex: number, viewport: HTMLDivElement): void {
     this.activeCell.set({ rowIndex, columnIndex });
-    const selector = `.b-table__cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"]`;
+    const selector = `.b-table__cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"], .b-table__select-cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"]`;
     const targetCell = viewport.querySelector<HTMLElement>(selector);
     targetCell?.focus();
   }
