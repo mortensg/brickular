@@ -81,9 +81,11 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   protected readonly BRICK_SELECT_COLUMN_ID = BRICK_SELECT_COLUMN_ID;
   readonly row = input.required<BrickTableRow<T>>();
   readonly visibleRowIndex = input(0);
+  /** Index of this row in paged rows (visibleRange.start + visibleRowIndex). Used so active cell survives scroll. */
+  readonly pagedRowIndex = input(0);
   /** When true, row shows hover styling (used so left/center/right segments stay in sync). */
   readonly isRowHovered = input(false);
-  readonly activeCell = input<{ rowIndex: number; columnIndex: number }>({ rowIndex: 0, columnIndex: 0 });
+  readonly activeCell = input<{ pagedRowIndex: number; columnIndex: number }>({ pagedRowIndex: -1, columnIndex: -1 });
   readonly columns = input<readonly BrickTableColumnDef<T>[]>([]);
   /** Offset to add to pane column index to get global column index (for keyboard nav across panes). */
   readonly columnIndexOffset = input(0);
@@ -100,8 +102,8 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   readonly startEdit = output<{ rowIndex: number; columnId: string }>();
   readonly commitCellEdit = output<{ row: T; rowIndex: number; columnId: string; nextValue: string }>();
   readonly cancelEdit = output<void>();
-  readonly cellKeydown = output<{ rowIndex: number; columnId: string; columnIndex: number; key: string; shiftKey: boolean }>();
-  readonly cellFocus = output<{ rowIndex: number; columnIndex: number }>();
+  readonly cellKeydown = output<{ pagedRowIndex: number; columnId: string; columnIndex: number; key: string; shiftKey: boolean }>();
+  readonly cellFocus = output<{ pagedRowIndex: number; columnIndex: number }>();
   readonly rowMouseEnter = output<void>();
   readonly rowMouseLeave = output<void>();
 
@@ -157,7 +159,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     }
     if ((event.key === 'c' || event.key === 'C') && (event.ctrlKey || event.metaKey)) {
       this.cellKeydown.emit({
-        rowIndex: this.visibleRowIndex(),
+        pagedRowIndex: this.pagedRowIndex(),
         columnId,
         columnIndex: globalColumnIndex,
         key: event.key,
@@ -168,7 +170,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     if (event.key === 'Tab') {
       event.preventDefault();
       this.cellKeydown.emit({
-        rowIndex: this.visibleRowIndex(),
+        pagedRowIndex: this.pagedRowIndex(),
         columnId,
         columnIndex: globalColumnIndex,
         key: event.key,
@@ -183,7 +185,7 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
     }
     event.preventDefault();
     this.cellKeydown.emit({
-      rowIndex: this.visibleRowIndex(),
+      pagedRowIndex: this.pagedRowIndex(),
       columnId,
       columnIndex: globalColumnIndex,
       key: event.key,
@@ -192,19 +194,23 @@ export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected cellTabIndex(globalColumnIndex: number): number {
-    return this.isActiveCell(globalColumnIndex) ? 0 : -1;
+    const active = this.activeCell();
+    const isActive = this.isActiveCell(globalColumnIndex);
+    const isFirstCellAndNoneActive =
+      active.pagedRowIndex === -1 && this.pagedRowIndex() === 0 && globalColumnIndex === 0;
+    return isActive || isFirstCellAndNoneActive ? 0 : -1;
   }
 
   protected onCellFocus(globalColumnIndex: number): void {
     this.cellFocus.emit({
-      rowIndex: this.visibleRowIndex(),
+      pagedRowIndex: this.pagedRowIndex(),
       columnIndex: globalColumnIndex,
     });
   }
 
   protected isActiveCell(globalColumnIndex: number): boolean {
     const active = this.activeCell();
-    return active.rowIndex === this.visibleRowIndex() && active.columnIndex === globalColumnIndex;
+    return active.pagedRowIndex === this.pagedRowIndex() && active.columnIndex === globalColumnIndex;
   }
 
   private resolveCustomCellClass(column: BrickTableColumnDef<T>): string {

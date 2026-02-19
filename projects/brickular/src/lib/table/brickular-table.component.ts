@@ -60,6 +60,7 @@ import {
       />
 
       <div
+        #scrollShell
         class="b-table__scroll-shell"
         [class.b-table--vertical-borders]="showVerticalBorders()"
         role="grid"
@@ -118,6 +119,7 @@ import {
                       <b-table-row
                         [row]="row"
                         [visibleRowIndex]="visibleRowIndex"
+                        [pagedRowIndex]="visibleRange().start + visibleRowIndex"
                         [columnIndexOffset]="0"
                         [isRowHovered]="hoveredVisibleRowIndex() === visibleRowIndex"
                         [columns]="leftColumns()"
@@ -132,7 +134,7 @@ import {
                         (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                         (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
                         (cancelEdit)="cancelEdit()"
-                        (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
+                        (cellFocus)="setActiveCell($event.pagedRowIndex, $event.columnIndex)"
                         (cellKeydown)="onCellKeydown($event)"
                         (rowMouseEnter)="onRowMouseEnter(visibleRowIndex)"
                         (rowMouseLeave)="onRowMouseLeave()"
@@ -154,6 +156,7 @@ import {
                       <b-table-row
                         [row]="row"
                         [visibleRowIndex]="visibleRowIndex"
+                        [pagedRowIndex]="visibleRange().start + visibleRowIndex"
                         [columnIndexOffset]="leftColumns().length"
                         [isRowHovered]="hoveredVisibleRowIndex() === visibleRowIndex"
                         [columns]="centerColumns()"
@@ -168,7 +171,7 @@ import {
                         (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                         (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
                         (cancelEdit)="cancelEdit()"
-                        (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
+                        (cellFocus)="setActiveCell($event.pagedRowIndex, $event.columnIndex)"
                         (cellKeydown)="onCellKeydown($event)"
                         (rowMouseEnter)="onRowMouseEnter(visibleRowIndex)"
                         (rowMouseLeave)="onRowMouseLeave()"
@@ -185,6 +188,7 @@ import {
                       <b-table-row
                         [row]="row"
                         [visibleRowIndex]="visibleRowIndex"
+                        [pagedRowIndex]="visibleRange().start + visibleRowIndex"
                         [columnIndexOffset]="leftColumns().length + centerColumns().length"
                         [isRowHovered]="hoveredVisibleRowIndex() === visibleRowIndex"
                         [columns]="rightColumns()"
@@ -199,7 +203,7 @@ import {
                         (startEdit)="startEdit($event.rowIndex, $event.columnId)"
                         (commitCellEdit)="commitEdit($event.row, $event.rowIndex, $event.columnId, $event.nextValue)"
                         (cancelEdit)="cancelEdit()"
-                        (cellFocus)="setActiveCell($event.rowIndex, $event.columnIndex)"
+                        (cellFocus)="setActiveCell($event.pagedRowIndex, $event.columnIndex)"
                         (cellKeydown)="onCellKeydown($event)"
                         (rowMouseEnter)="onRowMouseEnter(visibleRowIndex)"
                         (rowMouseLeave)="onRowMouseLeave()"
@@ -264,6 +268,7 @@ import {
   encapsulation: ViewEncapsulation.None,
 })
 export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
+  readonly scrollShell = viewChild<ElementRef<HTMLDivElement>>('scrollShell');
   readonly bodyContent = viewChild<ElementRef<HTMLDivElement>>('bodyContent');
   readonly verticalScrollbar = viewChild<ElementRef<HTMLDivElement>>('verticalScrollbar');
   readonly horizontalScrollbar = viewChild<ElementRef<HTMLDivElement>>('horizontalScrollbar');
@@ -292,8 +297,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly pageSize = signal(this.defaultPageSize());
   protected readonly selectedIndices = signal<readonly number[]>([]);
   protected readonly editingCell = signal<{ rowIndex: number; columnId: string } | null>(null);
-  protected readonly activeCell = signal<{ rowIndex: number; columnIndex: number }>({
-    rowIndex: -1,
+  /** Active cell by index in paged rows (so it does not change when scrolling). */
+  protected readonly activeCell = signal<{ pagedRowIndex: number; columnIndex: number }>({
+    pagedRowIndex: -1,
     columnIndex: -1,
   });
   private readonly headerOrder = signal<readonly string[]>([]);
@@ -628,16 +634,16 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     });
 
     effect(() => {
-      const rowCount = this.visibleRows().length;
+      const pagedRowCount = this.pagedRows().length;
       const columnCount = this.renderedColumns().length;
       const current = this.activeCell();
-      if (rowCount === 0 || columnCount === 0 || current.rowIndex < 0 || current.columnIndex < 0) {
+      if (pagedRowCount === 0 || columnCount === 0 || current.pagedRowIndex < 0 || current.columnIndex < 0) {
         return;
       }
-      const rowIndex = Math.min(Math.max(current.rowIndex, 0), rowCount - 1);
+      const pagedRowIndex = Math.min(Math.max(current.pagedRowIndex, 0), pagedRowCount - 1);
       const columnIndex = Math.min(Math.max(current.columnIndex, 0), columnCount - 1);
-      if (rowIndex !== current.rowIndex || columnIndex !== current.columnIndex) {
-        this.activeCell.set({ rowIndex, columnIndex });
+      if (pagedRowIndex !== current.pagedRowIndex || columnIndex !== current.columnIndex) {
+        this.activeCell.set({ pagedRowIndex, columnIndex });
       }
     });
 
@@ -661,6 +667,53 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
         };
       }
       return;
+    });
+
+    effect(() => {
+      const shell = this.scrollShell()?.nativeElement;
+      if (!shell) {
+        return;
+      }
+      const onDocKeydown = (event: KeyboardEvent): void => {
+        const navKeys = new Set([
+          'ArrowUp',
+          'ArrowDown',
+          'ArrowLeft',
+          'ArrowRight',
+          'Home',
+          'End',
+          'Tab',
+        ]);
+        if (!navKeys.has(event.key)) {
+          return;
+        }
+        const active = this.activeCell();
+        if (active.pagedRowIndex < 0 || active.columnIndex < 0) {
+          return;
+        }
+        const target = event.target as Node | null;
+        if (!target) {
+          return;
+        }
+        const isInsideCell =
+          target instanceof HTMLElement &&
+          target.closest?.('.b-table__cell, .b-table__select-cell');
+        if (isInsideCell) {
+          return;
+        }
+        const isInsideTable = shell.contains(target);
+        const isBody = target === document.body;
+        if (!isInsideTable && !isBody) {
+          return;
+        }
+        event.preventDefault();
+        const content = this.bodyContent()?.nativeElement;
+        if (content) {
+          this.focusCell(active.pagedRowIndex, active.columnIndex, content);
+        }
+      };
+      document.addEventListener('keydown', onDocKeydown, true);
+      return () => document.removeEventListener('keydown', onDocKeydown, true);
     });
   }
 
@@ -919,13 +972,18 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.editingCell.set(null);
   }
 
-  protected onCellKeydown(event: { rowIndex: number; columnIndex: number; key: string; shiftKey: boolean }): void {
+  protected onCellKeydown(event: {
+    pagedRowIndex: number;
+    columnIndex: number;
+    key: string;
+    shiftKey: boolean;
+  }): void {
     if (event.key === 'c' || event.key === 'C') {
       const keyboard = (window.event ?? null) as KeyboardEvent | null;
       if (keyboard && (keyboard.ctrlKey || keyboard.metaKey)) {
-        const rows = this.visibleRows();
+        const pagedRows = this.pagedRows();
         const columns = this.renderedColumns();
-        const row = rows[event.rowIndex];
+        const row = pagedRows[event.pagedRowIndex];
         const column = columns[event.columnIndex];
         if (row && column) {
           const value = this.displayValueForClipboard(column, row.source as T);
@@ -936,26 +994,26 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
         return;
       }
     }
-    const rowCount = this.visibleRows().length;
+    const pagedRowCount = this.pagedRows().length;
     const columnCount = this.renderedColumns().length;
-    if (rowCount === 0 || columnCount === 0) {
+    if (pagedRowCount === 0 || columnCount === 0) {
       return;
     }
 
-    let nextRow = event.rowIndex;
+    let nextPagedRow = event.pagedRowIndex;
     let nextColumn = event.columnIndex;
 
     if (event.key === 'Tab') {
       if (event.shiftKey) {
         if (event.columnIndex === 0) {
-          nextRow = Math.max(event.rowIndex - 1, 0);
+          nextPagedRow = Math.max(event.pagedRowIndex - 1, 0);
           nextColumn = columnCount - 1;
         } else {
           nextColumn = event.columnIndex - 1;
         }
       } else {
         if (event.columnIndex === columnCount - 1) {
-          nextRow = Math.min(event.rowIndex + 1, rowCount - 1);
+          nextPagedRow = Math.min(event.pagedRowIndex + 1, pagedRowCount - 1);
           nextColumn = 0;
         } else {
           nextColumn = event.columnIndex + 1;
@@ -964,7 +1022,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     } else {
       const rowDelta = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
       const columnDelta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-      nextRow = Math.min(Math.max(event.rowIndex + rowDelta, 0), rowCount - 1);
+      nextPagedRow = Math.min(Math.max(event.pagedRowIndex + rowDelta, 0), pagedRowCount - 1);
       nextColumn = Math.min(Math.max(event.columnIndex + columnDelta, 0), columnCount - 1);
 
       if (event.key === 'Home') {
@@ -979,7 +1037,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (!content) {
       return;
     }
-    this.focusCell(nextRow, nextColumn, content);
+    this.focusCell(nextPagedRow, nextColumn, content);
   }
 
   protected toggleSortById(columnId: string, addToSort: boolean): void {
@@ -1015,8 +1073,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     }
   }
 
-  protected setActiveCell(rowIndex: number, columnIndex: number): void {
-    this.activeCell.set({ rowIndex, columnIndex });
+  protected setActiveCell(pagedRowIndex: number, columnIndex: number): void {
+    this.activeCell.set({ pagedRowIndex, columnIndex });
   }
 
   protected onRowMouseEnter(visibleRowIndex: number): void {
@@ -1027,11 +1085,73 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.hoveredVisibleRowIndex.set(null);
   }
 
-  private focusCell(rowIndex: number, columnIndex: number, viewport: HTMLDivElement): void {
-    this.activeCell.set({ rowIndex, columnIndex });
-    const selector = `.b-table__cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"], .b-table__select-cell[data-nav-row="${rowIndex}"][data-nav-col="${columnIndex}"]`;
-    const targetCell = viewport.querySelector<HTMLElement>(selector);
-    targetCell?.focus();
+  private focusCell(pagedRowIndex: number, columnIndex: number, viewport: HTMLDivElement): void {
+    this.scrollRowIntoView(pagedRowIndex);
+    this.scrollColumnIntoView(columnIndex);
+    this.activeCell.set({ pagedRowIndex, columnIndex });
+    setTimeout(() => {
+      const range = this.visibleRange();
+      if (pagedRowIndex < range.start || pagedRowIndex >= range.end) {
+        return;
+      }
+      const visibleRowIndex = pagedRowIndex - range.start;
+      const selector = `.b-table__cell[data-nav-row="${visibleRowIndex}"][data-nav-col="${columnIndex}"], .b-table__select-cell[data-nav-row="${visibleRowIndex}"][data-nav-col="${columnIndex}"]`;
+      const targetCell = viewport.querySelector<HTMLElement>(selector);
+      targetCell?.focus();
+    }, 0);
+  }
+
+  private scrollRowIntoView(pagedRowIndex: number): void {
+    const range = this.visibleRange();
+    if (pagedRowIndex >= range.start && pagedRowIndex < range.end) {
+      return;
+    }
+    const rowH = this.rowHeight();
+    const newScrollTop = Math.max(0, pagedRowIndex * rowH - rowH * 0.5);
+    this.scrollTop.set(newScrollTop);
+    const vBar = this.verticalScrollbar()?.nativeElement;
+    if (vBar) {
+      vBar.scrollTop = newScrollTop;
+    }
+  }
+
+  private scrollColumnIntoView(columnIndex: number): void {
+    const L = this.leftColumns().length;
+    const C = this.centerColumns().length;
+    if (columnIndex < L || columnIndex >= L + C) {
+      return;
+    }
+    const columns = this.renderedColumns();
+    const widths = this.resolvedColumnWidths();
+    let columnLeft = 0;
+    for (let i = L; i < columnIndex; i++) {
+      const col = columns[i];
+      columnLeft += widths[col.id] ?? col.width ?? 160;
+    }
+    const activeCol = columns[columnIndex];
+    const columnWidth = widths[activeCol.id] ?? activeCol.width ?? 160;
+    const columnRight = columnLeft + columnWidth;
+    const paneW = this.centerPaneWidth();
+    const maxScroll = Math.max(0, this.centerColumnsTotalWidth() - paneW);
+    let newScrollLeft = this.centerScrollLeft();
+    if (columnLeft < newScrollLeft) {
+      newScrollLeft = Math.max(0, columnLeft - 24);
+    } else if (columnRight > newScrollLeft + paneW) {
+      newScrollLeft = Math.min(maxScroll, columnRight - paneW + 24);
+    }
+    newScrollLeft = Math.min(maxScroll, Math.max(0, newScrollLeft));
+    if (Math.abs(newScrollLeft - this.centerScrollLeft()) < 1) {
+      return;
+    }
+    this.centerScrollLeft.set(newScrollLeft);
+    const hBar = this.horizontalScrollbar()?.nativeElement;
+    const head = this.headScroller()?.nativeElement;
+    if (hBar) {
+      hBar.scrollLeft = newScrollLeft;
+    }
+    if (head) {
+      head.scrollLeft = newScrollLeft;
+    }
   }
 
   private displayValueForClipboard(column: BrickTableColumnDef<T>, row: T): string {
