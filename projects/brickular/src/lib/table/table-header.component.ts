@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   BRICK_SELECT_COLUMN_ID,
@@ -7,6 +7,7 @@ import {
   BrickRowData,
   BrickTableColumnDef,
 } from './table-types';
+import { computeHeaderGroupSegments } from './table-header-groups';
 import { resolveFilterType as engineResolveFilterType } from './table-engine';
 import { tableHeaderCellVariants, toPinVariant } from './table-variants';
 
@@ -15,112 +16,190 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
   imports: [CommonModule],
   template: `
     @if (headerGroups().length > 0 && computedHeaderGroups().length > 0) {
-      <div class="b-table__header-group-shell" role="rowgroup">
-        <div
-          class="b-table__header-group-spacer b-table__header-group-spacer--left"
-          [class.b-table__header-group-spacer--left-has-columns]="leftPinnedWidth() > 0"
-          [style.width.px]="leftPinnedWidth()"
-        ></div>
-        <div
-          class="b-table__header-group-row"
-          role="row"
-          [style.width.px]="centerTotalWidth()"
-        >
-          @for (group of computedHeaderGroups(); track group.id) {
-            <div
-              class="b-table__header-group-cell"
-              [style.width.px]="group.width"
-            >
+      <div
+        class="b-table__header-merged"
+        role="rowgroup"
+        aria-label="Column groups and headers"
+        [style.grid-template-columns]="headerGridTemplateColumns()"
+      >
+        @for (group of computedHeaderGroups(); track group.id) {
+          <div
+            class="b-table__header-group-cell"
+            [class.b-table__header-group-cell--drag-gap]="group.id === '__drag-gap'"
+            [class.b-table__header-group-cell--drop-target]="group.id !== '__drag-gap' && group.id === dropTargetGroupId()"
+            [style.grid-column]="(centerColumnStart() + group.columnStart) + ' / span ' + group.columnSpan"
+            [style.grid-row]="'1'"
+            [attr.role]="group.id === '__drag-gap' ? null : 'columnheader'"
+            [attr.aria-label]="group.id === '__drag-gap' ? null : group.label"
+            [attr.aria-hidden]="group.id === '__drag-gap' ? true : null"
+          >
+            @if (group.id !== '__drag-gap') {
               {{ group.label }}
-            </div>
-          }
-        </div>
-        <div
-          class="b-table__header-group-spacer b-table__header-group-spacer--right"
-          [class.b-table__header-group-spacer--right-has-columns]="rightPinnedWidth() > 0"
-          [style.width.px]="rightPinnedWidth()"
-        ></div>
-      </div>
-    }
-
-    <div class="b-table__header-row" role="row">
-      @for (column of columns(); track column.id) {
-        @if (column.id === BRICK_SELECT_COLUMN_ID) {
-          <div
-            class="b-table__select-cell b-table__header-select-cell"
-            [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
-            [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
-            [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
-            [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
-            [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
-            role="columnheader"
-            [attr.data-column-id]="column.id"
-            [style.position]="column.pinned ? 'sticky' : null"
-            [style.zIndex]="column.pinned ? 9 : null"
-            [style.width.px]="columnWidths()[column.id]"
-            [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
-            [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
-            draggable="true"
-            tabindex="0"
-            (click)="$event.preventDefault(); $event.stopPropagation()"
-            (contextmenu)="onHeaderContextMenu($event, column)"
-            (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
-            (dragover)="onHeaderDragOver($event, column.id)"
-            (dragend)="onHeaderDragEnd()"
-            (drop)="onHeaderDropInternal(column.id)"
-          >
-            @if (column.id !== draggingColumnId()) {
-            <input
-              type="checkbox"
-              [checked]="allVisibleSelected()"
-              [indeterminate]="someVisibleSelected()"
-              (change)="onSelectVisibleChange($event); $event.stopPropagation()"
-              (click)="$event.stopPropagation()"
-              aria-label="Select visible rows"
-            />
-            }
-          </div>
-        } @else {
-          <div
-            [class]="headerCellClass(column)"
-            [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
-            [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
-            [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
-            [style.width.px]="columnWidths()[column.id]"
-            [attr.data-column-id]="column.id"
-            [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
-            [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
-            [style.minWidth.px]="column.minWidth ?? 80"
-            [style.maxWidth.px]="column.maxWidth ?? 600"
-            [title]="column.tooltip ?? column.header"
-            [attr.draggable]="column.suppressMove ? null : 'true'"
-            role="columnheader"
-            tabindex="0"
-            (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
-            (contextmenu)="onHeaderContextMenu($event, column)"
-            (dragstart)="onHeaderDragStart($event, column)"
-            (dragover)="onHeaderDragOver($event, column.id)"
-            (dragend)="onHeaderDragEnd()"
-            (drop)="onHeaderDropInternal(column.id)"
-          >
-            @if (column.id !== draggingColumnId()) {
-            <span>{{ resolveHeaderLabel(column) }}</span>
-            <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
-            @if (column.resizable !== false) {
-              <button
-                type="button"
-                class="b-table__resize-handle"
-                draggable="false"
-                (dragstart)="$event.preventDefault(); $event.stopPropagation()"
-                (mousedown)="resizeStart.emit({ columnId: column.id, event: $event }); $event.stopPropagation()"
-                [attr.aria-label]="'Resize column ' + column.header"
-              ></button>
-            }
             }
           </div>
         }
-      }
-    </div>
+        @for (column of columns(); track column.id; let colIndex = $index) {
+          @if (column.id === BRICK_SELECT_COLUMN_ID) {
+            <div
+              class="b-table__select-cell b-table__header-select-cell"
+              [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
+              [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+              [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
+              [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
+              [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
+              role="columnheader"
+              [attr.data-column-id]="column.id"
+              [style.grid-column]="(colIndex + 1) + ' / span 1'"
+              [style.grid-row]="'2'"
+              [style.position]="column.pinned ? 'sticky' : null"
+              [style.zIndex]="column.pinned ? 9 : null"
+              [style.width.px]="columnWidths()[column.id]"
+              [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+              [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
+              draggable="true"
+              tabindex="0"
+              (click)="$event.preventDefault(); $event.stopPropagation()"
+              (contextmenu)="onHeaderContextMenu($event, column)"
+              (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
+              (dragover)="onHeaderDragOver($event, column.id)"
+              (dragend)="onHeaderDragEnd()"
+              (drop)="onHeaderDropInternal(column.id)"
+            >
+              @if (column.id !== draggingColumnId()) {
+              <input
+                type="checkbox"
+                [checked]="allVisibleSelected()"
+                [indeterminate]="someVisibleSelected()"
+                (change)="onSelectVisibleChange($event); $event.stopPropagation()"
+                (click)="$event.stopPropagation()"
+                aria-label="Select visible rows"
+              />
+              }
+            </div>
+          } @else {
+            <div
+              [class]="headerCellClass(column)"
+              [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
+              [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
+              [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
+              [class.b-table__header-cell--ungrouped-full-height]="isUngroupedFullHeight(column)"
+              [style.grid-column]="(colIndex + 1) + ' / span 1'"
+              [style.grid-row]="isUngroupedFullHeight(column) ? '1 / -1' : '2'"
+              [style.width.px]="columnWidths()[column.id]"
+              [attr.data-column-id]="column.id"
+              [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+              [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
+              [style.minWidth.px]="column.minWidth ?? 80"
+              [style.maxWidth.px]="column.maxWidth ?? 600"
+              [title]="column.tooltip ?? column.header"
+              [attr.draggable]="column.suppressMove ? null : 'true'"
+              role="columnheader"
+              tabindex="0"
+              (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
+              (contextmenu)="onHeaderContextMenu($event, column)"
+              (dragstart)="onHeaderDragStart($event, column)"
+              (dragover)="onHeaderDragOver($event, column.id)"
+              (dragend)="onHeaderDragEnd()"
+              (drop)="onHeaderDropInternal(column.id)"
+            >
+              @if (column.id !== draggingColumnId()) {
+              <span>{{ resolveHeaderLabel(column) }}</span>
+              <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
+              @if (column.resizable !== false) {
+                <button
+                  type="button"
+                  class="b-table__resize-handle"
+                  draggable="false"
+                  (dragstart)="$event.preventDefault(); $event.stopPropagation()"
+                  (mousedown)="resizeStart.emit({ columnId: column.id, event: $event }); $event.stopPropagation()"
+                  [attr.aria-label]="'Resize column ' + column.header"
+                ></button>
+              }
+              }
+            </div>
+          }
+        }
+      </div>
+    } @else {
+      <div class="b-table__header-row" role="row">
+        @for (column of columns(); track column.id) {
+          @if (column.id === BRICK_SELECT_COLUMN_ID) {
+            <div
+              class="b-table__select-cell b-table__header-select-cell"
+              [class.b-table__select-cell--pinned-left]="column.pinned === 'left'"
+              [class.b-table__select-cell--pinned-right]="column.pinned === 'right'"
+              [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
+              [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
+              [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
+              role="columnheader"
+              [attr.data-column-id]="column.id"
+              [style.position]="column.pinned ? 'sticky' : null"
+              [style.zIndex]="column.pinned ? 9 : null"
+              [style.width.px]="columnWidths()[column.id]"
+              [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+              [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
+              draggable="true"
+              tabindex="0"
+              (click)="$event.preventDefault(); $event.stopPropagation()"
+              (contextmenu)="onHeaderContextMenu($event, column)"
+              (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
+              (dragover)="onHeaderDragOver($event, column.id)"
+              (dragend)="onHeaderDragEnd()"
+              (drop)="onHeaderDropInternal(column.id)"
+            >
+              @if (column.id !== draggingColumnId()) {
+              <input
+                type="checkbox"
+                [checked]="allVisibleSelected()"
+                [indeterminate]="someVisibleSelected()"
+                (change)="onSelectVisibleChange($event); $event.stopPropagation()"
+                (click)="$event.stopPropagation()"
+                aria-label="Select visible rows"
+              />
+              }
+            </div>
+          } @else {
+            <div
+              [class]="headerCellClass(column)"
+              [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
+              [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
+              [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
+              [style.width.px]="columnWidths()[column.id]"
+              [attr.data-column-id]="column.id"
+              [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
+              [style.right.px]="column.pinned === 'right' ? stickyRightPx()[column.id] : null"
+              [style.minWidth.px]="column.minWidth ?? 80"
+              [style.maxWidth.px]="column.maxWidth ?? 600"
+              [title]="column.tooltip ?? column.header"
+              [attr.draggable]="column.suppressMove ? null : 'true'"
+              role="columnheader"
+              tabindex="0"
+              (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
+              (contextmenu)="onHeaderContextMenu($event, column)"
+              (dragstart)="onHeaderDragStart($event, column)"
+              (dragover)="onHeaderDragOver($event, column.id)"
+              (dragend)="onHeaderDragEnd()"
+              (drop)="onHeaderDropInternal(column.id)"
+            >
+              @if (column.id !== draggingColumnId()) {
+              <span>{{ resolveHeaderLabel(column) }}</span>
+              <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
+              @if (column.resizable !== false) {
+                <button
+                  type="button"
+                  class="b-table__resize-handle"
+                  draggable="false"
+                  (dragstart)="$event.preventDefault(); $event.stopPropagation()"
+                  (mousedown)="resizeStart.emit({ columnId: column.id, event: $event }); $event.stopPropagation()"
+                  [attr.aria-label]="'Resize column ' + column.header"
+                ></button>
+              }
+              }
+            </div>
+          }
+        }
+      </div>
+    }
 
     <div class="b-table__filter-row" role="row">
       @for (column of columns(); track column.id) {
@@ -263,50 +342,63 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     return column.headerRenderer ? column.headerRenderer(column) : column.header;
   }
 
-  protected computedHeaderGroups(): readonly { id: string; label: string; width: number }[] {
-    const columns = this.columns().filter((column) => !column.pinned);
+  /** True when column has no group and groups exist: render as full-height cell spanning group + header row. */
+  protected isUngroupedFullHeight(column: BrickTableColumnDef<T>): boolean {
+    if (this.headerGroups().length === 0 || column.pinned) {
+      return false;
+    }
+    const id = column.headerGroupId;
+    return id == null || id === '';
+  }
+
+  /** During drag, the column under the cursor (drop target) – used to highlight that group. */
+  readonly dropTargetColumnId = input<string | null>(null);
+  /** Dragged column's original header group so we can avoid showing a gap when reordering within the same group. */
+  readonly draggingColumnOriginalGroupId = input<string | null>(null);
+
+  protected readonly dropTargetGroupId = computed(() => {
+    const id = this.dropTargetColumnId();
+    if (!id) return null;
+    const col = this.columns().find((c) => c.id === id);
+    return col?.headerGroupId ?? null;
+  });
+
+  protected computedHeaderGroups(): readonly { id: string; label: string; width: number; columnStart: number; columnSpan: number }[] {
+    const centerColumns = this.columns().filter((c) => !c.pinned);
     const widths = this.columnWidths();
     const groups = this.headerGroups();
-    if (groups.length === 0 || columns.length === 0) {
-      return [];
-    }
-    const labelById = new Map<string, string>(groups.map((group) => [group.id, group.label]));
-    const result: { id: string; label: string; width: number }[] = [];
-
-    let currentId: string | null = null;
-    let currentLabel = '';
-    let currentWidth = 0;
-
-    for (const column of columns) {
-      const groupId = column.headerGroupId;
-      if (!groupId || !labelById.has(groupId)) {
-        if (currentId) {
-          result.push({ id: currentId, label: currentLabel, width: currentWidth });
-          currentId = null;
-          currentLabel = '';
-          currentWidth = 0;
-        }
-        continue;
-      }
-      const label = labelById.get(groupId) ?? groupId;
-      if (groupId !== currentId) {
-        if (currentId) {
-          result.push({ id: currentId, label: currentLabel, width: currentWidth });
-        }
-        currentId = groupId;
-        currentLabel = label;
-        currentWidth = 0;
-      }
-      const width = widths[column.id] ?? column.width ?? 160;
-      currentWidth += width;
-    }
-
-    if (currentId) {
-      result.push({ id: currentId, label: currentLabel, width: currentWidth });
-    }
-
-    return result;
+    const getWidth = (columnId: string) => {
+      const col = this.columns().find((c) => c.id === columnId);
+      return widths[columnId] ?? col?.width ?? 160;
+    };
+    return computeHeaderGroupSegments(
+      centerColumns,
+      getWidth,
+      groups,
+      this.centerTotalWidth(),
+      {
+        draggingColumnId: this.draggingColumnId(),
+        dropTargetColumnId: this.dropTargetColumnId(),
+        draggingOriginalGroupId: this.draggingColumnOriginalGroupId(),
+        dropGroupId: this.dropTargetGroupId(),
+      },
+    );
   }
+
+  /** Center columns only (no pinned) for grid layout. */
+  protected readonly centerColumns = computed(() => this.columns().filter((c) => !c.pinned));
+
+  /** 1-based grid column where center starts (after left-pinned). */
+  protected readonly centerColumnStart = computed(() =>
+    this.columns().filter((c) => c.pinned === 'left').length + 1,
+  );
+
+  /** grid-template-columns string for the merged header grid (all columns). */
+  protected readonly headerGridTemplateColumns = computed(() => {
+    const cols = this.columns();
+    const w = this.columnWidths();
+    return cols.map((c) => `${w[c.id] ?? c.width ?? 160}px`).join(' ');
+  });
 
   protected onHeaderContextMenu(event: MouseEvent, column: BrickTableColumnDef<T>): void {
     event.preventDefault();

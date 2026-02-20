@@ -1,0 +1,109 @@
+/**
+ * Pure logic for computing header group segments (group row cells) from center columns and drag state.
+ * Two-phase: (1) effective segment key per column index, (2) merge contiguous keys into segments.
+ * Used by the table header to render the group row without a long stateful loop in the component.
+ */
+
+export interface HeaderGroupSegmentInputColumn {
+  readonly id: string;
+  readonly headerGroupId?: string;
+}
+
+export interface ComputeHeaderGroupSegmentsOptions {
+  readonly draggingColumnId: string | null;
+  readonly dropTargetColumnId: string | null;
+  readonly draggingOriginalGroupId: string | null;
+  /** Group id of the column under the cursor (drop target). */
+  readonly dropGroupId: string | null;
+}
+
+export interface HeaderGroupSegment {
+  readonly id: string;
+  readonly label: string;
+  readonly width: number;
+  readonly columnStart: number;
+  readonly columnSpan: number;
+}
+
+/**
+ * Computes the list of group row segments (and optional __drag-gap) for the center pane.
+ *
+ * - Normal column: segment key = its headerGroupId if in headerGroups, else null (ungrouped, no segment).
+ * - Dragging column: same-group reorder → original group; drop into a group → that group; else __drag-gap.
+ * Contiguous indices with the same key are merged into one segment. Last segment width is adjusted so total matches totalWidth.
+ */
+export function computeHeaderGroupSegments(
+  centerColumns: readonly HeaderGroupSegmentInputColumn[],
+  getWidth: (columnId: string) => number,
+  headerGroups: readonly { id: string; label: string }[],
+  totalWidth: number,
+  options: ComputeHeaderGroupSegmentsOptions,
+): HeaderGroupSegment[] {
+  if (headerGroups.length === 0 || centerColumns.length === 0) {
+    return [];
+  }
+
+  const labelById = new Map(headerGroups.map((g) => [g.id, g.label]));
+  const { draggingColumnId, draggingOriginalGroupId, dropGroupId } = options;
+
+  // Phase 1: effective segment key per index (string = group id or '__drag-gap', null = ungrouped)
+  const keys: (string | null)[] = [];
+  for (const col of centerColumns) {
+    if (col.id === draggingColumnId) {
+      const sameGroupReorder =
+        draggingOriginalGroupId != null &&
+        (dropGroupId == null || dropGroupId === draggingOriginalGroupId);
+      if (sameGroupReorder) {
+        keys.push(draggingOriginalGroupId);
+      } else if (dropGroupId != null) {
+        keys.push(dropGroupId);
+      } else {
+        keys.push('__drag-gap');
+      }
+    } else {
+      const gid = col.headerGroupId;
+      keys.push(gid != null && labelById.has(gid) ? gid : null);
+    }
+  }
+
+  // Phase 2: merge contiguous same key into segments (skip null)
+  const segments: HeaderGroupSegment[] = [];
+  let i = 0;
+  while (i < centerColumns.length) {
+    const key = keys[i];
+    if (key === null) {
+      i++;
+      continue;
+    }
+    const start = i;
+    let width = 0;
+    while (i < centerColumns.length && keys[i] === key) {
+      width += Math.round(getWidth(centerColumns[i].id));
+      i++;
+    }
+    const columnSpan = i - start;
+    if (key === '__drag-gap') {
+      segments.push({ id: '__drag-gap', label: '', width, columnStart: start, columnSpan });
+    } else {
+      segments.push({
+        id: key,
+        label: labelById.get(key) ?? key,
+        width,
+        columnStart: start,
+        columnSpan,
+      });
+    }
+  }
+
+  // Phase 3: adjust last segment so total width matches totalWidth
+  if (segments.length > 0 && totalWidth > 0) {
+    const sum = segments.reduce((s, seg) => s + seg.width, 0);
+    const diff = totalWidth - sum;
+    if (diff !== 0) {
+      const last = segments[segments.length - 1];
+      segments[segments.length - 1] = { ...last, width: Math.max(0, last.width + diff) };
+    }
+  }
+
+  return segments;
+}

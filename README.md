@@ -57,6 +57,7 @@ Then wrap your app (or layout) with a theme class: `brickular-theme-light` or `b
 | **Editing**        | Inline cell edit with commit/cancel events                           |
 | **Virtualization** | Row virtualization for large datasets                                |
 | **Columns**        | Reorder (drag), resize, pin left/right                               |
+| **Header groups**  | Optional group row above headers; `headerGroupId` per column; drag between groups; pin column leaves group; `columnGroupChange` output |
 | **Theming**        | CSS variables; light and dark themes included                        |
 
 ## Workspace structure

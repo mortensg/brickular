@@ -100,6 +100,12 @@ export interface BrickCellEditEvent<T extends BrickRowData> {
   readonly row: T;
 }
 
+/** Emitted when a column's header group changes (e.g. drag-drop into another group or pin column → leave group). */
+export interface BrickColumnGroupChange {
+  readonly columnId: string;
+  readonly headerGroupId: string | undefined;
+}
+
 export interface BrickTableRow<T extends BrickRowData> {
   readonly source: T;
   readonly sourceIndex: number;

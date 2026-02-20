@@ -57,6 +57,7 @@ export class MyTableComponent {
 - **Editing** — optional inline cell edit, `editCommit` / `cancelEdit` outputs
 - **Virtualization** — row virtualization for large lists
 - **Columns** — drag to reorder, resize handles, pin left/right (via context menu)
+- **Header groups** — optional `headerGroups` and per-column `headerGroupId`; group row above headers; drag columns between groups; pinning a column removes it from its group; `columnGroupChange` output for persistence
 - **Keyboard** — arrow keys, Tab, Home, End; focus restored when scrolling
 - **Theming** — CSS variables; light/dark themes included
 
@@ -84,9 +85,9 @@ For a detailed list of **behavior guarantees** that P1 commits to (sorting, filt
 | `data`, `columnDefs` | `selectionChange` |
 | `defaultPageSize`, `pageSizeOptions`, `rowHeight` | `sortChange`, `pageChange` |
 | `selectionMode` (`'single'` \| `'multiple'`) | `editCommit` |
-| `paginationEnabled`, `quickFilter`, … | |
+| `paginationEnabled`, `quickFilter`, `headerGroups`, … | `columnGroupChange` |
 
-Column def: `id`, `header`, `field?`, `sortable?`, `filterable?`, `editable?`, `pinned?`, `valueGetter?`, `valueFormatter?`, `comparator?`, and more.
+Column def: `id`, `header`, `field?`, `headerGroupId?`, `sortable?`, `filterable?`, `editable?`, `pinned?`, `valueGetter?`, `valueFormatter?`, `comparator?`, and more.
 
 ## License
 

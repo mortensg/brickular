@@ -19,6 +19,7 @@ import { BrickTableToolbarComponent } from './table-toolbar.component';
 import { BrickTableFooterComponent } from './table-footer.component';
 import {
   BRICK_SELECT_COLUMN_ID,
+  BrickColumnGroupChange,
   BrickColumnPin,
   BrickCellEditEvent,
   BrickFilterValue,
@@ -74,7 +75,7 @@ import { ColumnReorderAnimator } from './column-reorder-animator';
         <div class="b-table__head-row">
           <div #headScroller class="b-table__head-scroller" (wheel)="onHeaderWheel($event)">
             <b-table-header
-              [columns]="previewRenderedColumns()"
+              [columns]="headerColumnsWithGroupOverrides()"
               [columnWidths]="resolvedColumnWidths()"
               [stickyLeftPx]="stickyLeftPx()"
               [stickyRightPx]="stickyRightPx()"
@@ -90,6 +91,8 @@ import { ColumnReorderAnimator } from './column-reorder-animator';
               [filters]="filters()"
               [draggingColumnId]="dragColumnId()"
               [headerGroups]="headerGroups()"
+              [dropTargetColumnId]="dropTargetColumnIdForHeader()"
+              [draggingColumnOriginalGroupId]="draggingColumnOriginalGroupId()"
               (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
               (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
               (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
@@ -311,6 +314,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly sortChange = output<readonly BrickSortState[]>();
   readonly pageChange = output<BrickTablePageState>();
   readonly editCommit = output<BrickCellEditEvent<T>>();
+  /** Emitted when a column's header group changes (drag-drop into another group or pin leaves group). */
+  readonly columnGroupChange = output<BrickColumnGroupChange>();
 
   protected readonly quickFilter = signal('');
   protected readonly filters = signal<Record<string, BrickFilterValue>>({});
@@ -327,6 +332,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly headerOrder = signal<readonly string[]>([]);
   private readonly pinnedColumns = signal<Record<string, BrickColumnPin | undefined>>({});
   private readonly hiddenColumns = signal<Record<string, boolean>>({});
+  /** When a column is dropped onto another, assign it to that column's header group. */
+  private readonly headerGroupOverrides = signal<Record<string, string | undefined>>({});
   protected readonly columnWidths = signal<Record<string, number>>({});
   protected readonly dragColumnId = signal<string | null>(null);
   /** During drag: where the column would drop (so we can show preview order). */
@@ -379,7 +386,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     );
   });
 
-  /** Column order for display: when dragging, reorder so the grid shows the drop result. */
+  /** Column order for display: when dragging, reorder so the grid shows the drop result. Uses exact drop target (any position within a group). */
   protected readonly previewRenderedColumns = computed(() => {
     const cols = this.renderedColumns();
     const dragId = this.dragColumnId();
@@ -403,6 +410,37 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       : draggedCol;
     const insertAt = target.before ? targetIdx : targetIdx + 1;
     return [...without.slice(0, insertAt), previewDraggedColumn, ...without.slice(insertAt)];
+  });
+
+  /** Drop target column id for header (to highlight the group under cursor). */
+  protected readonly dropTargetColumnIdForHeader = computed(() => this.dragDropTarget()?.targetColumnId ?? null);
+
+  /** Dragged column's original header group (before strip), so header can hide the gap when reordering within same group. Uses overrides so a column moved to another group is treated as belonging to that group on the next drag. */
+  protected readonly draggingColumnOriginalGroupId = computed(() => {
+    const id = this.dragColumnId();
+    if (!id) return null;
+    const overrides = this.headerGroupOverrides();
+    if (Object.prototype.hasOwnProperty.call(overrides, id)) {
+      return overrides[id] ?? null;
+    }
+    const col = this.renderedColumns().find((c) => c.id === id);
+    return col?.headerGroupId ?? null;
+  });
+
+  /** Columns for header with headerGroupId overrides applied (from drag-drop onto another group). During drag, the dragged column has no group so no label appears above the placeholder. */
+  protected readonly headerColumnsWithGroupOverrides = computed(() => {
+    const cols = this.previewRenderedColumns();
+    const overrides = this.headerGroupOverrides();
+    const dragId = this.dragColumnId();
+    return cols.map((c) => {
+      if (c.id === dragId) {
+        return { ...c, headerGroupId: undefined };
+      }
+      if (Object.prototype.hasOwnProperty.call(overrides, c.id)) {
+        return { ...c, headerGroupId: overrides[c.id] };
+      }
+      return c;
+    }) as readonly BrickTableColumnDef<T>[];
   });
 
   protected readonly filteredRows = computed<readonly BrickTableRow<T>[]>(() => {
@@ -609,6 +647,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       this.lastInitColumnKey.set(columnIdsKey);
 
       this.headerOrder.set(defs.map((column) => column.id));
+      this.headerGroupOverrides.set({});
       this.columnWidths.set(
         defs.reduce<Record<string, number>>((acc, column) => {
           acc[column.id] = column.width ?? Math.max(column.minWidth ?? 80, 160);
@@ -1113,6 +1152,20 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           [sourceColumnId]: targetPinned,
         }));
       }
+      // Assign dragged column to the target column's header group when using header groups. When dropping onto a pinned column, remove from group (pin column → leave group).
+      if (this.headerGroups().length > 0) {
+        const newGroupId: string | undefined = targetPinned ? undefined : targetColumn.headerGroupId;
+        this.headerGroupOverrides.update((current) => {
+          const next = { ...current };
+          if (targetPinned) {
+            delete next[sourceColumnId];
+          } else {
+            next[sourceColumnId] = targetColumn.headerGroupId;
+          }
+          return next;
+        });
+        this.columnGroupChange.emit({ columnId: sourceColumnId, headerGroupId: newGroupId });
+      }
     }
 
     this.dragDropTarget.set(null);
@@ -1125,6 +1178,15 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       const nextPinned = current[columnId] === 'left' ? 'right' : current[columnId] === 'right' ? undefined : 'left';
       return { ...current, [columnId]: nextPinned };
     });
+    const pinned = this.pinnedColumns()[columnId];
+    if (pinned && this.headerGroups().length > 0) {
+      this.headerGroupOverrides.update((current) => {
+        const next = { ...current };
+        delete next[columnId];
+        return next;
+      });
+      this.columnGroupChange.emit({ columnId, headerGroupId: undefined });
+    }
   }
 
   protected pinColumnFromMenu(direction: BrickColumnPin | undefined): void {
@@ -1143,6 +1205,14 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       ...current,
       [columnId]: direction,
     }));
+    if (direction && this.headerGroups().length > 0) {
+      this.headerGroupOverrides.update((current) => {
+        const next = { ...current };
+        delete next[columnId];
+        return next;
+      });
+      this.columnGroupChange.emit({ columnId, headerGroupId: undefined });
+    }
     this.headerMenuVisible.set(false);
     this.headerMenuColumnId.set(null);
   }
@@ -1277,7 +1347,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
       let maxWidth = 0;
       const headerCell = head.querySelector<HTMLElement>(
-        `.b-table__header-row [data-column-id="${columnId}"]`,
+        `.b-table__header-row [data-column-id="${columnId}"], .b-table__header-merged [data-column-id="${columnId}"]`,
       );
       if (headerCell) {
         maxWidth = Math.max(maxWidth, headerCell.getBoundingClientRect().width);

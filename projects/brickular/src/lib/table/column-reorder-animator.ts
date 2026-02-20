@@ -75,7 +75,7 @@ export class ColumnReorderAnimator {
     const snapshot: PositionSnapshot = new Map();
 
     const headerCells = this.headElement.querySelectorAll<HTMLElement>(
-      '.b-table__header-row [data-column-id]',
+      '.b-table__header-row [data-column-id], .b-table__header-merged [data-column-id]',
     );
     headerCells.forEach((element) => {
       const columnId = element.getAttribute('data-column-id');

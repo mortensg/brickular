@@ -6,6 +6,7 @@ export interface TableDocRow extends BrickRowData {
   readonly country: string;
   readonly status: 'Active' | 'Paused' | 'Trial';
   readonly spend: number;
+  readonly priority: string;
   readonly createdAt: string;
   readonly plan: 'Free' | 'Pro' | 'Enterprise';
   readonly churnRisk: 'Low' | 'Medium' | 'High';
@@ -63,6 +64,15 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     width: 130,
     headerGroupId: 'status',
     valueFormatter: (value) => `$${Number(value).toFixed(0)}`,
+  },
+  {
+    id: 'priority',
+    header: 'Priority',
+    field: 'priority',
+    sortable: true,
+    filterable: true,
+    width: 120,
+    // No headerGroupId: column renders full height (group + header row) in center pane
   },
   {
     id: 'createdAt',
@@ -127,12 +137,14 @@ export function createTableRows(size: number): readonly TableDocRow[] {
   const plans: readonly TableDocRow['plan'][] = ['Free', 'Pro', 'Enterprise'];
   const churnLevels: readonly TableDocRow['churnRisk'][] = ['Low', 'Medium', 'High'];
   const owners = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank'];
+  const priorities = ['High', 'Medium', 'Low'];
   return Array.from({ length: size }, (_, index) => ({
     id: index + 1,
     customer: `Customer ${index + 1}`,
     country: countries[index % countries.length],
     status: statuses[index % statuses.length],
     spend: ((index * 41) % 2000) + 120,
+    priority: priorities[index % priorities.length],
     createdAt: new Date(2025, index % 12, (index % 28) + 1).toISOString().slice(0, 10),
     plan: plans[index % plans.length],
     churnRisk: churnLevels[index % churnLevels.length],

@@ -59,6 +59,24 @@
   min-width: 0;
 }
 
+.b-table__header-merged {
+  display: grid;
+  grid-template-rows: auto auto;
+  width: 100%;
+  min-width: max-content;
+  background: var(--b-table-header-bg);
+  border-bottom: 1px solid var(--b-table-border);
+
+  .b-table__header-group-cell {
+    border-bottom: 1px solid var(--b-table-border);
+  }
+
+  .b-table__header-cell,
+  .b-table__select-cell {
+    border-right: 1px solid var(--b-table-border);
+  }
+}
+
 .b-table__header-group-shell {
   display: flex;
   width: 100%;
@@ -102,11 +120,32 @@
 .b-table__header-group-cell {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-weight: 600;
+  justify-content: flex-start;
+  font-weight: normal;
   padding: 0.2rem 0.5rem;
   border-right: 1px solid var(--b-table-border);
   box-sizing: border-box;
+}
+
+/* No label or border emphasis for the placeholder column during drag */
+.b-table__header-group-cell--drag-gap {
+  border-right-color: transparent;
+  background: transparent;
+}
+
+/* Expand/highlight the group under the drop target so it’s clear the column will join this group */
+.b-table__header-group-cell--drop-target {
+  background: rgba(37, 99, 235, 0.12);
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.25rem;
+  border-right-color: rgba(37, 99, 235, 0.4);
+}
+
+/* Ungrouped column in merged header: cell spans both rows via grid-row 1 / -1 (no margin hack) */
+.b-table__header-merged .b-table__header-cell--ungrouped-full-height {
+  position: relative;
+  z-index: 2;
+  background: var(--b-table-header-bg);
 }
 
 .b-table__head-scroller {
@@ -114,6 +153,7 @@
   min-width: 0;
   overflow: hidden;
   border-bottom: 1px solid var(--b-table-border);
+  --b-table-group-row-height: 2rem;
 }
 
 /* Corner above vertical scrollbar: header bg to match header row */
@@ -251,6 +291,7 @@
   align-items: center;
   background: var(--b-table-header-bg);
   max-width: 100%;
+  padding-top: 4px;
 }
 
 .b-table__scrollbar-h-inner {
@@ -429,7 +470,7 @@
 }
 
 .b-table__header-cell {
-  font-weight: 600;
+  font-weight: normal;
   user-select: none;
   position: relative;
 }
@@ -478,6 +519,8 @@
 
 .b-table__header-row .b-table__select-cell--pinned-left,
 .b-table__header-row .b-table__select-cell--pinned-right,
+.b-table__header-merged .b-table__select-cell--pinned-left,
+.b-table__header-merged .b-table__select-cell--pinned-right,
 .b-table__filter-row .b-table__select-cell--pinned-left,
 .b-table__filter-row .b-table__select-cell--pinned-right {
   z-index: 9;
@@ -489,7 +532,8 @@
 }
 
 /* Checkbox header: match header row background and stacking */
-.b-table__header-row .b-table__header-select-cell {
+.b-table__header-row .b-table__header-select-cell,
+.b-table__header-merged .b-table__header-select-cell {
   display: grid;
   place-items: center;
   position: relative;
@@ -500,6 +544,8 @@
 /* Drag slot: empty column placeholder during reorder (header, filter row, body) */
 .b-table__header-row .b-table__header-cell--drag-slot,
 .b-table__header-row .b-table__select-cell.b-table__header-cell--drag-slot,
+.b-table__header-merged .b-table__header-cell--drag-slot,
+.b-table__header-merged .b-table__select-cell.b-table__header-cell--drag-slot,
 .b-table__filter-row .b-table__filter-cell--drag-slot,
 .b-table__filter-row .b-table__select-cell.b-table__filter-cell--drag-slot {
   background: rgba(37, 99, 235, 0.08);
