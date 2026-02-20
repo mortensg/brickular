@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import {
   BRICK_SELECT_COLUMN_ID,
   BrickFilterValue,
+  BrickHeaderDragTarget,
   BrickHeaderGroupDef,
   BrickRowData,
   BrickTableColumnDef,
@@ -22,11 +23,11 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
         aria-label="Column groups and headers"
         [style.grid-template-columns]="headerGridTemplateColumns()"
       >
-        @for (group of computedHeaderGroups(); track group.id) {
+        @for (group of computedHeaderGroups(); track group.id; let groupIndex = $index) {
           <div
             class="b-table__header-group-cell"
             [class.b-table__header-group-cell--drag-gap]="group.id === '__drag-gap'"
-            [class.b-table__header-group-cell--drop-target]="group.id !== '__drag-gap' && group.id === dropTargetGroupId()"
+            [class.b-table__header-group-cell--drop-target]="group.id !== '__drag-gap' && group.id === dropTargetGroupId() && !dropTargetUngroupAtEdge()"
             [style.grid-column]="(centerColumnStart() + group.columnStart) + ' / span ' + group.columnSpan"
             [style.grid-row]="'1'"
             [attr.role]="group.id === '__drag-gap' ? null : 'columnheader'"
@@ -34,7 +35,25 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [attr.aria-hidden]="group.id === '__drag-gap' ? true : null"
           >
             @if (group.id !== '__drag-gap') {
-              {{ group.label }}
+              <div
+                class="b-table__header-group-edge b-table__header-group-edge--left"
+                [class.b-table__header-group-edge--drop-target]="isUngroupEdgeDropTarget(group.id, 'left')"
+                (dragover)="onGroupEdgeDragOver($event, group.id, 'left')"
+                (drop)="onGroupEdgeDrop($event, group.id, 'left')"
+              ></div>
+              <div
+                class="b-table__header-group-middle"
+                (dragover)="onGroupMiddleDragOver($event, group.id)"
+                (drop)="onGroupMiddleDrop($event, group.id)"
+              >
+                <span class="b-table__header-group-label">{{ group.label }}</span>
+              </div>
+              <div
+                class="b-table__header-group-edge b-table__header-group-edge--right"
+                [class.b-table__header-group-edge--drop-target]="isUngroupEdgeDropTarget(group.id, 'right')"
+                (dragover)="onGroupEdgeDragOver($event, group.id, 'right')"
+                (drop)="onGroupEdgeDrop($event, group.id, 'right')"
+              ></div>
             }
           </div>
         }
@@ -82,9 +101,9 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
               [class.b-table__header-cell--left-boundary]="column.id === lastLeftColumnId()"
               [class.b-table__header-cell--right-boundary]="column.id === firstRightColumnId()"
               [class.b-table__header-cell--drag-slot]="column.id === draggingColumnId()"
-              [class.b-table__header-cell--ungrouped-full-height]="isUngroupedFullHeight(column) && column.id !== draggingColumnId()"
+              [class.b-table__header-cell--ungrouped-full-height]="(isUngroupedFullHeight(column) && column.id !== draggingColumnId()) || (column.id === draggingColumnId() && (dropTargetUngroupAtEdgeForSegments() || (!dropTargetGroupId() && !draggingColumnSourceGroupId())))"
               [style.grid-column]="(colIndex + 1) + ' / span 1'"
-              [style.grid-row]="(isUngroupedFullHeight(column) && column.id !== draggingColumnId()) ? '1 / -1' : '2'"
+              [style.grid-row]="(isUngroupedFullHeight(column) && column.id !== draggingColumnId()) || (column.id === draggingColumnId() && (dropTargetUngroupAtEdgeForSegments() || (!dropTargetGroupId() && !draggingColumnSourceGroupId()))) ? '1 / -1' : '2'"
               [style.width.px]="columnWidths()[column.id]"
               [attr.data-column-id]="column.id"
               [style.left.px]="column.pinned === 'left' ? stickyLeftPx()[column.id] : null"
@@ -318,8 +337,8 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly toggleSort = output<{ columnId: string; addToSort: boolean }>();
   readonly headerDragStart = output<{ columnId: string; event: DragEvent }>();
   readonly headerDrop = output<string>();
-  /** Emits current drop target during drag so parent can show preview order; null when drag ends. */
-  readonly headerDragTarget = output<{ targetColumnId: string; before: boolean } | null>();
+  /** Emits current drop target during drag so parent can show preview order; null when drag ends. ungroupAtEdge = drop on 5px edge = place ungrouped. */
+  readonly headerDragTarget = output<BrickHeaderDragTarget | null>();
   /** Emits when a header drag ends without drop (e.g. cancel or drag outside). */
   readonly headerDragEnd = output<void>();
   readonly resizeStart = output<{ columnId: string; event: MouseEvent }>();
@@ -353,15 +372,18 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
 
   /** During drag, the column under the cursor (drop target) – used to highlight that group. */
   readonly dropTargetColumnId = input<string | null>(null);
+  /** Whether the drop would be before the target column (true = before, false = after). */
+  readonly dropTargetBefore = input<boolean>(true);
+  /** Group id of the drop target column (from parent table). */
+  readonly dropTargetGroupId = input<string | null>(null);
+  /** True when drop would be on the 5px edge zone (drop = place column ungrouped next to that edge). */
+  readonly dropTargetUngroupAtEdge = input<boolean>(false);
+  /** Raw ungroup-at-edge from hint (for segment computation: hide group name above placeholder when over ungroup edge). */
+  readonly dropTargetUngroupAtEdgeForSegments = input<boolean>(false);
   /** Dragged column's original header group so we can avoid showing a gap when reordering within the same group. */
   readonly draggingColumnOriginalGroupId = input<string | null>(null);
-
-  protected readonly dropTargetGroupId = computed(() => {
-    const id = this.dropTargetColumnId();
-    if (!id) return null;
-    const col = this.columns().find((c) => c.id === id);
-    return col?.headerGroupId ?? null;
-  });
+  /** Dragged column's group from def/override so the group band keeps full width when drop target is null. */
+  readonly draggingColumnSourceGroupId = input<string | null>(null);
 
   protected computedHeaderGroups(): readonly { id: string; label: string; width: number; columnStart: number; columnSpan: number }[] {
     const centerColumns = this.columns().filter((c) => !c.pinned);
@@ -381,6 +403,8 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
         dropTargetColumnId: this.dropTargetColumnId(),
         draggingOriginalGroupId: this.draggingColumnOriginalGroupId(),
         dropGroupId: this.dropTargetGroupId(),
+        draggingColumnSourceGroupId: this.draggingColumnSourceGroupId(),
+        dropTargetUngroupAtEdge: this.dropTargetUngroupAtEdgeForSegments(),
       },
     );
   }
@@ -434,7 +458,7 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     const rect = element.getBoundingClientRect();
     const offsetX = event.clientX - rect.left;
     const before = offsetX < rect.width / 2;
-    this.headerDragTarget.emit({ targetColumnId, before });
+    this.headerDragTarget.emit({ targetColumnId, before, ungroupAtEdge: false });
   }
 
   protected onHeaderDragEnd(): void {
@@ -444,6 +468,78 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
 
   protected onHeaderDropInternal(targetColumnId: string): void {
     this.headerDrop.emit(targetColumnId);
+    this.clearDragPlaceholder();
+  }
+
+  /** First center column id in the given group (display order). */
+  protected getFirstColumnIdInGroup(groupId: string): string | null {
+    const center = this.columns().filter((c) => !c.pinned);
+    const inGroup = center.filter((c) => c.headerGroupId === groupId);
+    return inGroup.length > 0 ? inGroup[0].id : null;
+  }
+
+  /** Last center column id in the given group (display order). */
+  protected getLastColumnIdInGroup(groupId: string): string | null {
+    const center = this.columns().filter((c) => !c.pinned);
+    const inGroup = center.filter((c) => c.headerGroupId === groupId);
+    return inGroup.length > 0 ? inGroup[inGroup.length - 1].id : null;
+  }
+
+  /** True when this group's left or right edge is the current ungroup drop target. */
+  protected isUngroupEdgeDropTarget(groupId: string, edge: 'left' | 'right'): boolean {
+    if (!this.dropTargetUngroupAtEdge() || this.dropTargetGroupId() !== groupId) return false;
+    const before = this.dropTargetBefore();
+    return edge === 'left' ? before : !before;
+  }
+
+  protected onGroupEdgeDragOver(event: DragEvent, groupId: string, edge: 'left' | 'right'): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    const draggingId = this.draggingColumnId();
+    if (!draggingId) return;
+    const firstId = this.getFirstColumnIdInGroup(groupId);
+    const lastId = this.getLastColumnIdInGroup(groupId);
+    const sameGroup = this.draggingColumnOriginalGroupId() === groupId;
+    if (edge === 'left' && firstId) {
+      this.headerDragTarget.emit({ targetColumnId: firstId, before: true, ungroupAtEdge: !sameGroup });
+    } else if (edge === 'right' && lastId) {
+      this.headerDragTarget.emit({ targetColumnId: lastId, before: false, ungroupAtEdge: !sameGroup });
+    }
+  }
+
+  protected onGroupEdgeDrop(event: DragEvent, groupId: string, edge: 'left' | 'right'): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const firstId = this.getFirstColumnIdInGroup(groupId);
+    const lastId = this.getLastColumnIdInGroup(groupId);
+    if (edge === 'left' && firstId) {
+      this.headerDrop.emit(firstId);
+    } else if (edge === 'right' && lastId) {
+      this.headerDrop.emit(lastId);
+    }
+    this.clearDragPlaceholder();
+  }
+
+  protected onGroupMiddleDragOver(event: DragEvent, groupId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    const draggingId = this.draggingColumnId();
+    if (!draggingId) return;
+    const lastId = this.getLastColumnIdInGroup(groupId);
+    if (lastId && lastId !== draggingId) {
+      this.headerDragTarget.emit({ targetColumnId: lastId, before: false, ungroupAtEdge: false });
+    }
+  }
+
+  protected onGroupMiddleDrop(event: DragEvent, groupId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const lastId = this.getLastColumnIdInGroup(groupId);
+    if (lastId) {
+      this.headerDrop.emit(lastId);
+    }
     this.clearDragPlaceholder();
   }
 

@@ -119,12 +119,47 @@
 
 .b-table__header-group-cell {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
   font-weight: normal;
-  padding: 0.2rem 0.5rem;
+  padding: 0;
   border-right: 1px solid var(--b-table-border);
   box-sizing: border-box;
+  min-width: 0;
+}
+
+.b-table__header-group-middle {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  overflow: hidden;
+}
+
+.b-table__header-group-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 5px edge zones: always visible; drop here to place column ungrouped next to this group edge */
+.b-table__header-group-edge {
+  flex: 0 0 6px;
+  cursor: default;
+  min-width: 6px;
+  /* Default: subtle visible strip so users see the ungroup zone */
+  &.b-table__header-group-edge--right {
+    border-left: none;
+  }
+  &.b-table__header-group-edge--drop-target {
+    border-left: 2px solid rgba(37, 99, 235, 0.8);
+  }
+  &.b-table__header-group-edge--right.b-table__header-group-edge--drop-target {
+    border-left: none;
+    border-right: 2px solid rgba(37, 99, 235, 0.8);
+  }
 }
 
 /* No label or border emphasis for the placeholder column during drag */

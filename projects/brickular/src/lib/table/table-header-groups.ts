@@ -13,8 +13,12 @@ export interface ComputeHeaderGroupSegmentsOptions {
   readonly draggingColumnId: string | null;
   readonly dropTargetColumnId: string | null;
   readonly draggingOriginalGroupId: string | null;
-  /** Group id of the column under the cursor (drop target). */
+  /** Group id of the column under the cursor (drop target). Ungroup is via 5px edge zones, not a full __drag-gap. */
   readonly dropGroupId: string | null;
+  /** Dragged column's group from def/override (no drop-target check). When dropGroupId is null, use this so the group band keeps full width (e.g. over drag slot). */
+  readonly draggingColumnSourceGroupId?: string | null;
+  /** True when drop would ungroup (5px edge). Dragging column then gets __drag-gap so no group name shows above placeholder. */
+  readonly dropTargetUngroupAtEdge?: boolean;
 }
 
 export interface HeaderGroupSegment {
@@ -29,7 +33,7 @@ export interface HeaderGroupSegment {
  * Computes the list of group row segments (and optional __drag-gap) for the center pane.
  *
  * - Normal column: segment key = its headerGroupId if in headerGroups, else null (ungrouped, no segment).
- * - Dragging column: same-group reorder → original group; drop into a group → that group; else __drag-gap.
+ * - Dragging column: same-group reorder → original group; drop into a group (or over group edge) → that group; else __drag-gap (over ungrouped area only).
  * Contiguous indices with the same key are merged into one segment. Last segment width is adjusted so total matches totalWidth.
  */
 export function computeHeaderGroupSegments(
@@ -44,7 +48,13 @@ export function computeHeaderGroupSegments(
   }
 
   const labelById = new Map(headerGroups.map((g) => [g.id, g.label]));
-  const { draggingColumnId, draggingOriginalGroupId, dropGroupId } = options;
+  const {
+    draggingColumnId,
+    draggingOriginalGroupId,
+    dropGroupId,
+    draggingColumnSourceGroupId,
+    dropTargetUngroupAtEdge,
+  } = options;
 
   // Phase 1: effective segment key per index (string = group id or '__drag-gap', null = ungrouped)
   const keys: (string | null)[] = [];
@@ -55,8 +65,15 @@ export function computeHeaderGroupSegments(
         (dropGroupId == null || dropGroupId === draggingOriginalGroupId);
       if (sameGroupReorder) {
         keys.push(draggingOriginalGroupId);
+      } else if (dropTargetUngroupAtEdge) {
+        keys.push('__drag-gap');
       } else if (dropGroupId != null) {
         keys.push(dropGroupId);
+      } else if (
+        draggingColumnSourceGroupId != null &&
+        labelById.has(draggingColumnSourceGroupId)
+      ) {
+        keys.push(draggingColumnSourceGroupId);
       } else {
         keys.push('__drag-gap');
       }

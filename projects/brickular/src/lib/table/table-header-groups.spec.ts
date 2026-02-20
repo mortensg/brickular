@@ -88,6 +88,23 @@ describe('computeHeaderGroupSegments', () => {
     expect(segs[0]).toEqual(jasmine.objectContaining({ id: 'g1', columnStart: 0, columnSpan: 3, width: 300 }));
   });
 
+  it('move to last in same group: one segment (ungroup only via 5px edge zones)', () => {
+    const cols: HeaderGroupSegmentInputColumn[] = [
+      { id: 'a', headerGroupId: 'g1' },
+      { id: 'b', headerGroupId: 'g1' },
+      { id: 'c', headerGroupId: 'g1' },
+    ];
+    const segs = computeHeaderGroupSegments(cols, getWidth, GROUPS, 300, {
+      draggingColumnId: 'a',
+      dropTargetColumnId: 'c',
+      draggingOriginalGroupId: 'g1',
+      dropGroupId: 'g1',
+    });
+    expect(segs.length).toBe(1);
+    expect(segs[0].id).toBe('g1');
+    expect(segs[0].columnSpan).toBe(3);
+  });
+
   it('drop into another group: target group spans dragging slot (no split)', () => {
     const cols: HeaderGroupSegmentInputColumn[] = [
       { id: 'a', headerGroupId: 'g2' },

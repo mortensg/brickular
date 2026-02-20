@@ -23,6 +23,7 @@ import {
   BrickColumnPin,
   BrickCellEditEvent,
   BrickFilterValue,
+  BrickHeaderDragTarget,
   BrickHeaderGroupDef,
   BrickRowData,
   BrickSelectionMode,
@@ -42,6 +43,9 @@ import {
   visibleRange as engineVisibleRange,
 } from './table-engine';
 import { ColumnReorderAnimator } from './column-reorder-animator';
+
+/** Set to true to log header-group drag state to console (drag start, dragover hint changes, drop). Set to false to disable. */
+const DEBUG_HEADER_GROUP_DRAG = true;
 
 @Component({
   selector: 'b-table',
@@ -92,7 +96,12 @@ import { ColumnReorderAnimator } from './column-reorder-animator';
               [draggingColumnId]="dragColumnId()"
               [headerGroups]="headerGroups()"
               [dropTargetColumnId]="dropTargetColumnIdForHeader()"
+              [dropTargetBefore]="dropTargetBeforeForHeader()"
+              [dropTargetGroupId]="dropTargetGroupId() ?? null"
+              [dropTargetUngroupAtEdge]="dropTargetUngroupAtEdge()"
+              [dropTargetUngroupAtEdgeForSegments]="dropTargetUngroupAtEdgeForSegments()"
               [draggingColumnOriginalGroupId]="draggingColumnOriginalGroupId()"
+              [draggingColumnSourceGroupId]="draggingColumnSourceGroupId()"
               (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
               (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
               (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
@@ -336,8 +345,8 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   private readonly headerGroupOverrides = signal<Record<string, string | undefined>>({});
   protected readonly columnWidths = signal<Record<string, number>>({});
   protected readonly dragColumnId = signal<string | null>(null);
-  /** During drag: where the column would drop (so we can show preview order). */
-  private readonly dragDropTarget = signal<{ targetColumnId: string; before: boolean } | null>(null);
+  /** During drag: where the column would drop (so we can show preview order). ungroupAtEdge = drop on 5px edge = place ungrouped. */
+  private readonly dragDropTarget = signal<BrickHeaderDragTarget | null>(null);
   private readonly isResizing = signal(false);
   private readonly resizeEndedAt = signal(0);
   protected readonly scrollTop = signal(0);
@@ -415,8 +424,27 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   /** Drop target column id for header (to highlight the group under cursor). */
   protected readonly dropTargetColumnIdForHeader = computed(() => this.dragDropTarget()?.targetColumnId ?? null);
 
+  /** Whether the drop would be "before" the target column (true = insert before, false = insert after). */
+  protected readonly dropTargetBeforeForHeader = computed(() => this.dragDropTarget()?.before ?? true);
+
+  /** True when the drop would be on the 5px edge zone and column would leave the group. Same-group reorder never shows ungroup placeholder (even if hint is stale from passing over the edge). */
+  protected readonly dropTargetUngroupAtEdge = computed(
+    () =>
+      this.dragDropTarget()?.ungroupAtEdge === true && this.draggingColumnOriginalGroupId() == null,
+  );
+
+  /** Passed to header for segment computation: when true, dragging column gets __drag-gap (no group name above placeholder). True when over 5px edge OR when target has no group (over ungrouped column) and we have a source group. */
+  protected readonly dropTargetUngroupAtEdgeForSegments = computed(() => {
+    const hint = this.dragDropTarget();
+    if (!hint) return false;
+    const overEdge = hint.ungroupAtEdge === true;
+    const targetHasNoGroup = this.dropTargetGroupId() == null;
+    const hasSourceGroup = this.draggingColumnSourceGroupId() != null;
+    return overEdge || (targetHasNoGroup && hasSourceGroup);
+  });
+
   /** Group id of the column under the cursor (drop target). Null if no target or target is ungrouped. */
-  private readonly dropTargetGroupId = computed(() => {
+  protected readonly dropTargetGroupId = computed(() => {
     const targetId = this.dragDropTarget()?.targetColumnId ?? null;
     if (!targetId) return null;
     const cols = this.previewRenderedColumns();
@@ -439,6 +467,17 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (dropGroup == null) return null;
     if (dropGroup !== columnGroup) return null;
     return columnGroup;
+  });
+
+  /** Dragged column's group from def/override (no drop-target check). Used so the group band keeps full width when drop target is null (e.g. over drag slot). */
+  protected readonly draggingColumnSourceGroupId = computed(() => {
+    const id = this.dragColumnId();
+    if (!id) return null;
+    const overrides = this.headerGroupOverrides();
+    const col = this.renderedColumns().find((c) => c.id === id);
+    return Object.prototype.hasOwnProperty.call(overrides, id)
+      ? overrides[id] ?? null
+      : col?.headerGroupId ?? null;
   });
 
   /** Columns for header with headerGroupId overrides applied (from drag-drop onto another group). During drag, the dragged column has no group so no label appears above the placeholder. */
@@ -1025,12 +1064,15 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected onHeaderDragEnd(): void {
+    if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
+      this.logHeaderGroupDragState('dragEnd', {});
+    }
     this.dragColumnId.set(null);
     this.dragDropTarget.set(null);
     this.columnReorderAnimator?.reset();
   }
 
-  protected onHeaderDragTarget(hint: { targetColumnId: string; before: boolean } | null): void {
+  protected onHeaderDragTarget(hint: BrickHeaderDragTarget | null): void {
     if (!this.dragColumnId()) {
       this.dragDropTarget.set(null);
       this.columnReorderAnimator?.reset();
@@ -1053,6 +1095,10 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
     this.columnReorderAnimator?.captureBefore();
     this.dragDropTarget.set(hint);
+
+    if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
+      this.logHeaderGroupDragState('dragover', { hint });
+    }
 
     requestAnimationFrame(() => {
       this.columnReorderAnimator?.animateAfter();
@@ -1106,6 +1152,32 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     window.addEventListener('mouseup', onMouseUp);
   }
 
+  /** Debug: log header-group drag state. Only runs when DEBUG_HEADER_GROUP_DRAG is true. */
+  private logHeaderGroupDragState(
+    event: 'dragStart' | 'dragover' | 'drop' | 'dragEnd',
+    extra: Record<string, unknown>,
+  ): void {
+    const hint = this.dragDropTarget();
+    const payload = {
+      event,
+      dragColumnId: this.dragColumnId(),
+      hint: hint
+        ? {
+            targetColumnId: hint.targetColumnId,
+            before: hint.before,
+            ungroupAtEdge: hint.ungroupAtEdge,
+          }
+        : null,
+      dropTargetGroupId: this.dropTargetGroupId(),
+      draggingColumnOriginalGroupId: this.draggingColumnOriginalGroupId(),
+      draggingColumnSourceGroupId: this.draggingColumnSourceGroupId(),
+      dropTargetUngroupAtEdge: this.dropTargetUngroupAtEdge(),
+      dropTargetUngroupAtEdgeForSegments: this.dropTargetUngroupAtEdgeForSegments(),
+      ...extra,
+    };
+    console.log('[b-table header-group drag]', payload);
+  }
+
   protected onHeaderDragStart(columnId: string, event: DragEvent): void {
     if (this.isResizing()) {
       event.preventDefault();
@@ -1119,6 +1191,13 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.dragColumnId.set(columnId);
     event.dataTransfer?.setData('text/plain', columnId);
     event.dataTransfer!.effectAllowed = 'move';
+    if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
+      this.logHeaderGroupDragState('dragStart', {
+        columnId,
+        columnHeaderGroupId: column?.headerGroupId ?? undefined,
+        override: this.headerGroupOverrides()[columnId],
+      });
+    }
   }
 
   protected onHeaderDrop(targetColumnId: string): void {
@@ -1166,7 +1245,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           [sourceColumnId]: targetPinned,
         }));
       }
-      // Assign dragged column to the target column's header group when using header groups. Use the target's effective group (override first, then def) so dropping next to an ungrouped column leaves the dragged column ungrouped too.
+      // Assign dragged column to the target column's header group when using header groups. Drop on 5px edge zone = ungrouped only when leaving the group (same-group reorder at edge stays in group).
       if (this.headerGroups().length > 0) {
         const overrides = this.headerGroupOverrides();
         const targetEffectiveGroupId = targetPinned
@@ -1174,7 +1253,18 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           : (Object.prototype.hasOwnProperty.call(overrides, effectiveTargetColumnId)
               ? overrides[effectiveTargetColumnId]
               : targetColumn.headerGroupId);
-        const newGroupId: string | undefined = targetEffectiveGroupId ?? undefined;
+        const sourceGroupId =
+          Object.prototype.hasOwnProperty.call(overrides, sourceColumnId)
+            ? overrides[sourceColumnId]
+            : sourceColumn.headerGroupId;
+        const sameGroup =
+          targetEffectiveGroupId != null &&
+          sourceGroupId != null &&
+          targetEffectiveGroupId === sourceGroupId;
+        const effectiveUngroupAtEdge = hint?.ungroupAtEdge === true && !sameGroup;
+        const newGroupId: string | undefined = effectiveUngroupAtEdge
+          ? undefined
+          : (targetEffectiveGroupId ?? undefined);
         this.headerGroupOverrides.update((current) => {
           const next = { ...current };
           if (targetPinned) {
@@ -1185,6 +1275,15 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           return next;
         });
         this.columnGroupChange.emit({ columnId: sourceColumnId, headerGroupId: newGroupId });
+        if (DEBUG_HEADER_GROUP_DRAG) {
+          this.logHeaderGroupDragState('drop', {
+            effectiveTargetColumnId,
+            insertBefore,
+            sameGroup,
+            effectiveUngroupAtEdge,
+            newGroupId,
+          });
+        }
       }
     }
 

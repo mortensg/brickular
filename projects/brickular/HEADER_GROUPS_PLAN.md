@@ -83,10 +83,11 @@ This document defines the intended behavior for **header groups** (column catego
 | Area | What exists today |
 |------|-------------------|
 | **Data** | `BrickHeaderGroupDef`, `BrickTableColumnDef.headerGroupId`, `headerGroups` input, `headerGroupOverrides` signal. |
-| **Layout** | Group row with left spacer, center group row (scrollable), right spacer; `computedHeaderGroups()` builds segments from center columns. |
-| **Drag** | Raw drop target (before/after the hovered column) used for preview and drop; column can be placed anywhere within a group. |
-| **Placeholder in group row** | `__drag-gap` segment when placeholder is in a different group; when `draggingColumnOriginalGroupId === dropTargetGroupId` the dragged column is counted in the group (no gap). |
-| **Empty group** | Groups with `currentWidth > 0` only are pushed; last column dragged ⇒ group not shown. |
+| **Layout** | Group row with left spacer, center group row (scrollable), right spacer; pure `computeHeaderGroupSegments()` in `table-header-groups.ts` builds segments. |
+| **Drag** | Drop target (targetColumnId + before) from last dragover; column can be placed anywhere within a group; drop on group band = insert after last column of that group. |
+| **Ungroup** | Explicit 5px edge zones on left/right of each group band. Drop on edge = place column ungrouped next to that edge. Table uses `ungroupAtEdge` from drag hint. |
+| **Placeholder in group row** | `__drag-gap` only when the drop target is over ungrouped columns (no group). Same-group reorder and drop-into-group keep one segment. |
+| **Empty group** | When the only column in a group is dragged, that group has no segment. |
 | **Drop target highlight** | `dropTargetColumnId` / `dropTargetGroupId`; `.b-table__header-group-cell--drop-target` expands/highlights the group under cursor. |
 
 ---

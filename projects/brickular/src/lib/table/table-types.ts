@@ -49,6 +49,13 @@ export interface BrickHeaderGroupDef {
   readonly label: string;
 }
 
+/** Hint from header during column drag: where the column would drop. ungroupAtEdge = true when over the 5px edge zone of a group (drop = place column ungrouped next to that edge). */
+export interface BrickHeaderDragTarget {
+  readonly targetColumnId: string;
+  readonly before: boolean;
+  readonly ungroupAtEdge?: boolean;
+}
+
 export interface BrickTableColumnDef<T extends BrickRowData = BrickRowData> {
   readonly id: string;
   readonly header: string;
