@@ -22,6 +22,7 @@ import {
   BrickColumnPin,
   BrickCellEditEvent,
   BrickFilterValue,
+  BrickHeaderGroupDef,
   BrickRowData,
   BrickSelectionMode,
   BrickSelectionChange,
@@ -66,6 +67,7 @@ import { ColumnReorderAnimator } from './column-reorder-animator';
         #scrollShell
         class="b-table__scroll-shell"
         [class.b-table--vertical-borders]="showVerticalBorders()"
+        [class.b-table--auto-header-height]="autoHeaderHeight()"
         role="grid"
         [attr.aria-rowcount]="filteredRows().length"
       >
@@ -76,6 +78,10 @@ import { ColumnReorderAnimator } from './column-reorder-animator';
               [columnWidths]="resolvedColumnWidths()"
               [stickyLeftPx]="stickyLeftPx()"
               [stickyRightPx]="stickyRightPx()"
+              [leftPinnedWidth]="leftPaneWidth()"
+              [rightPinnedWidth]="rightPaneWidth()"
+              [centerTotalWidth]="centerColumnsTotalWidth()"
+              [centerScrollLeft]="centerScrollLeft()"
               [lastLeftColumnId]="lastLeftColumnId()"
               [firstRightColumnId]="firstRightColumnId()"
               [allVisibleSelected]="allVisibleSelected()"
@@ -83,6 +89,7 @@ import { ColumnReorderAnimator } from './column-reorder-animator';
               [sortIndicator]="sortIndicatorForHeader"
               [filters]="filters()"
               [draggingColumnId]="dragColumnId()"
+              [headerGroups]="headerGroups()"
               (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
               (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
               (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
@@ -295,6 +302,10 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   readonly selectionMode = input<BrickSelectionMode>('multiple');
   /** When true, show vertical borders between all columns. When false (default), only show borders at left/right pane edges. */
   readonly showVerticalBorders = input(false);
+  /** When true, header cells can grow vertically based on content instead of fixed row height. */
+  readonly autoHeaderHeight = input(false);
+  /** Optional header group definitions for grouping columns into bands. */
+  readonly headerGroups = input<readonly BrickHeaderGroupDef[]>([]);
 
   readonly selectionChange = output<BrickSelectionChange<T>>();
   readonly sortChange = output<readonly BrickSortState[]>();
@@ -505,8 +516,14 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (viewport <= 0) {
       return 0;
     }
-    const width = viewport - this.leftPaneWidth() - this.rightPaneWidth();
-    return width > 0 ? width : 0;
+    const contentWidth = this.centerColumnsTotalWidth();
+    const available = viewport - this.leftPaneWidth() - this.rightPaneWidth();
+    if (available <= 0 || contentWidth <= 0) {
+      return 0;
+    }
+    // The center pane should never be wider than its content; otherwise there will be a gap on the right.
+    const width = Math.min(contentWidth, available);
+    return Math.ceil(width);
   });
   protected readonly resolvedColumnWidths = computed<Record<string, number>>(() => {
     const columns = this.renderedColumns();
@@ -1041,6 +1058,11 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       event.preventDefault();
       return;
     }
+    const column = this.renderedColumns().find((entry) => entry.id === columnId);
+    if (column?.suppressMove) {
+      event.preventDefault();
+      return;
+    }
     this.dragColumnId.set(columnId);
     event.dataTransfer?.setData('text/plain', columnId);
     event.dataTransfer!.effectAllowed = 'move';
@@ -1108,6 +1130,13 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected pinColumnFromMenu(direction: BrickColumnPin | undefined): void {
     const columnId = this.headerMenuColumnId();
     if (!columnId) {
+      return;
+    }
+    const defs = this.effectiveColumnDefs();
+    const def = defs.find((column) => column.id === columnId);
+    if (def?.lockPinned) {
+      this.headerMenuVisible.set(false);
+      this.headerMenuColumnId.set(null);
       return;
     }
     this.pinnedColumns.update((current) => ({
@@ -1220,6 +1249,68 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.startResize(column, event);
   }
 
+  /** Auto-size one or more columns to fit header + visible row content. When no ids are provided, all resizable columns are sized. */
+  autoSizeColumns(columnIds?: readonly string[]): void {
+    const head = this.headScroller()?.nativeElement;
+    const body = this.bodyContent()?.nativeElement;
+    if (!head || !body) {
+      return;
+    }
+    const rendered = this.renderedColumns();
+    const defsById = new Map(rendered.map((column) => [column.id, column]));
+    const targetIds: readonly string[] =
+      columnIds && columnIds.length > 0 ? columnIds : rendered.map((column) => column.id);
+
+    const currentWidths = this.columnWidths();
+    const nextWidths: Record<string, number> = { ...currentWidths };
+
+    const maxBodyCellsPerColumn = 50;
+
+    for (const columnId of targetIds) {
+      if (columnId === BRICK_SELECT_COLUMN_ID) {
+        continue;
+      }
+      const def = defsById.get(columnId);
+      if (!def || def.resizable === false) {
+        continue;
+      }
+
+      let maxWidth = 0;
+      const headerCell = head.querySelector<HTMLElement>(
+        `.b-table__header-row [data-column-id="${columnId}"]`,
+      );
+      if (headerCell) {
+        maxWidth = Math.max(maxWidth, headerCell.getBoundingClientRect().width);
+      }
+
+      const bodyCells = body.querySelectorAll<HTMLElement>(
+        `.b-table__row [data-column-id="${columnId}"]`,
+      );
+      let count = 0;
+      bodyCells.forEach((cell) => {
+        if (count >= maxBodyCellsPerColumn) {
+          return;
+        }
+        const width = cell.getBoundingClientRect().width;
+        if (width > maxWidth) {
+          maxWidth = width;
+        }
+        count += 1;
+      });
+
+      if (maxWidth <= 0) {
+        continue;
+      }
+
+      const min = def.minWidth ?? 80;
+      const max = def.maxWidth ?? 600;
+      const clamped = Math.min(max, Math.max(min, Math.ceil(maxWidth)));
+      nextWidths[columnId] = clamped;
+    }
+
+    this.columnWidths.set(nextWidths);
+  }
+
   private emitSelectionChange(): void {
     const selected = new Set(this.selectedIndices());
     const selectedRows = this.data().filter((_, index) => selected.has(index));
@@ -1322,6 +1413,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       newScrollLeft = Math.min(maxScroll, columnRight - paneW + 24);
     }
     newScrollLeft = Math.min(maxScroll, Math.max(0, newScrollLeft));
+    newScrollLeft = Math.round(newScrollLeft);
     if (Math.abs(newScrollLeft - this.centerScrollLeft()) < 1) {
       return;
     }

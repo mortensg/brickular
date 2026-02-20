@@ -59,6 +59,56 @@
   min-width: 0;
 }
 
+.b-table__header-group-shell {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  background: var(--b-table-header-bg);
+}
+
+.b-table__header-group-row {
+  display: flex;
+  min-width: max-content;
+  background: var(--b-table-header-bg);
+  border-bottom: 1px solid var(--b-table-border);
+}
+
+.b-table__header-group-spacer {
+  flex: 0 0 auto;
+  background: var(--b-table-header-bg);
+  border-bottom: 1px solid var(--b-table-border);
+}
+
+.b-table__header-group-spacer--left {
+  position: sticky;
+  left: 0;
+  z-index: 9;
+}
+
+.b-table__header-group-spacer--right {
+  position: sticky;
+  right: 0;
+  z-index: 9;
+}
+
+.b-table__header-group-spacer--left-has-columns {
+  border-right: 1px solid var(--b-table-border);
+}
+
+.b-table__header-group-spacer--right-has-columns {
+  border-left: 1px solid var(--b-table-border);
+}
+
+.b-table__header-group-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-right: 1px solid var(--b-table-border);
+  box-sizing: border-box;
+}
+
 .b-table__head-scroller {
   flex: 1 1 0;
   min-width: 0;
@@ -72,7 +122,6 @@
   width: var(--b-scrollbar-width, 0.875rem);
   min-width: 0.875rem;
   background: var(--b-table-header-bg);
-  border-left: 1px solid var(--b-table-border);
   border-bottom: 1px solid var(--b-table-border);
 }
 
@@ -174,6 +223,14 @@
   flex: 0 0 auto;
   min-width: 0;
   background: var(--b-table-header-bg);
+
+  &:first-of-type {
+    border-right: 1px solid var(--b-table-border);
+  }
+
+  &:last-of-type {
+    border-left: 1px solid var(--b-table-border);
+  }
 }
 
 /* Reserve space for vertical scrollbar so horizontal scrollbar row aligns with grid (left/center/right panes). */
@@ -182,6 +239,7 @@
   width: var(--b-scrollbar-width, 0.875rem);
   min-width: 0;
   background: var(--b-table-header-bg);
+  border-left: 1px solid var(--b-table-border);
 }
 
 /* Horizontal scrollbar: container fills row; inner is thin and centered */
@@ -193,8 +251,6 @@
   align-items: center;
   background: var(--b-table-header-bg);
   max-width: 100%;
-  border-left: 1px solid var(--b-table-border);
-  border-right: 1px solid var(--b-table-border);
 }
 
 .b-table__scrollbar-h-inner {
@@ -272,6 +328,8 @@
   min-width: 0;
   overflow: hidden;
   /* width set in template (centerPaneWidth) so right pane stays visible and horizontal scroll works */
+  /* Pull center pane 1px under the vertical scrollbar to hide sub-pixel gaps at the far right. */
+  margin-right: -1px;
 }
 
 .b-table__center-offset {
@@ -301,6 +359,13 @@
   border-bottom: 1px solid var(--b-table-border);
   min-height: var(--b-row-height);
   box-sizing: border-box;
+}
+
+.b-table--auto-header-height .b-table__header-row .b-table__header-cell,
+.b-table--auto-header-height .b-table__header-row .b-table__select-cell,
+.b-table--auto-header-height .b-table__filter-row .b-table__filter-cell,
+.b-table--auto-header-height .b-table__filter-row .b-table__select-cell {
+  min-height: auto;
 }
 
 /* Always: vertical borders between header and filter cells */
@@ -346,6 +411,7 @@
   min-width: 0;
   align-items: stretch;
   overflow: hidden;
+  border-bottom: 0;
 }
 
 .b-table__filter-input {
@@ -432,13 +498,14 @@
 }
 
 /* Drag slot: empty column placeholder during reorder (header, filter row, body) */
-.b-table__header-cell--drag-slot,
-.b-table__filter-cell--drag-slot {
+.b-table__header-row .b-table__header-cell--drag-slot,
+.b-table__header-row .b-table__select-cell.b-table__header-cell--drag-slot,
+.b-table__filter-row .b-table__filter-cell--drag-slot,
+.b-table__filter-row .b-table__select-cell.b-table__filter-cell--drag-slot {
   background: rgba(37, 99, 235, 0.08);
   transition: background 0.12s ease-out;
-  border-left: 0;
-  border-right: 0;
-  box-shadow: inset 2px 0 0 #2563eb, inset -2px 0 0 #2563eb;
+  border-left: 2px solid #2563eb;
+  border-right: 2px solid #2563eb;
 }
 
 .b-table__cell--drag-slot,

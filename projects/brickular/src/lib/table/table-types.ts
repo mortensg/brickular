@@ -7,6 +7,8 @@ export type BrickSortDirection = 'asc' | 'desc';
 export type BrickSelectionMode = 'single' | 'multiple';
 export type BrickColumnPin = 'left' | 'right';
 
+export type BrickColumnAutoSizeMode = 'header' | 'headerAndRows';
+
 export interface BrickSortState {
   readonly columnId: string;
   readonly direction: BrickSortDirection;
@@ -42,11 +44,18 @@ export interface BrickCellContext<T extends BrickRowData> {
   readonly column: BrickTableColumnDef<T>;
 }
 
+export interface BrickHeaderGroupDef {
+  readonly id: string;
+  readonly label: string;
+}
+
 export interface BrickTableColumnDef<T extends BrickRowData = BrickRowData> {
   readonly id: string;
   readonly header: string;
   readonly field?: keyof T & string;
   readonly tooltip?: string;
+  /** Optional id for grouping this column under a header group. */
+  readonly headerGroupId?: string;
   readonly width?: number;
   readonly minWidth?: number;
   readonly maxWidth?: number;
@@ -58,11 +67,19 @@ export interface BrickTableColumnDef<T extends BrickRowData = BrickRowData> {
   readonly resizable?: boolean;
   readonly pinnable?: boolean;
   readonly pinned?: BrickColumnPin;
+  /** When true, this column cannot be reordered via drag. */
+  readonly suppressMove?: boolean;
+  /** When true, this column's pinned state cannot be changed by the user. */
+  readonly lockPinned?: boolean;
+  /** Controls how auto-size should measure this column. */
+  readonly autoSizeMode?: BrickColumnAutoSizeMode;
   readonly valueGetter?: (row: T) => unknown;
   readonly valueSetter?: (row: T, value: unknown) => T;
   readonly valueFormatter?: (value: unknown, row: T) => string;
   readonly comparator?: (a: unknown, b: unknown, rowA: T, rowB: T) => number;
   readonly cellRenderer?: (value: unknown, row: T) => string;
+  /** Optional renderer for header content; falls back to `header` string when omitted. */
+  readonly headerRenderer?: (column: BrickTableColumnDef<T>) => string;
   readonly cellClass?: BrickCellClass<T>;
   readonly filterType?: BrickFilterType;
 }

@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BRICK_SELECT_COLUMN_ID, BrickFilterValue, BrickRowData, BrickTableColumnDef } from './table-types';
+import {
+  BRICK_SELECT_COLUMN_ID,
+  BrickFilterValue,
+  BrickHeaderGroupDef,
+  BrickRowData,
+  BrickTableColumnDef,
+} from './table-types';
 import { resolveFilterType as engineResolveFilterType } from './table-engine';
 import { tableHeaderCellVariants, toPinVariant } from './table-variants';
 
@@ -8,6 +14,35 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
   selector: 'b-table-header',
   imports: [CommonModule],
   template: `
+    @if (headerGroups().length > 0 && computedHeaderGroups().length > 0) {
+      <div class="b-table__header-group-shell" role="rowgroup">
+        <div
+          class="b-table__header-group-spacer b-table__header-group-spacer--left"
+          [class.b-table__header-group-spacer--left-has-columns]="leftPinnedWidth() > 0"
+          [style.width.px]="leftPinnedWidth()"
+        ></div>
+        <div
+          class="b-table__header-group-row"
+          role="row"
+          [style.width.px]="centerTotalWidth()"
+        >
+          @for (group of computedHeaderGroups(); track group.id) {
+            <div
+              class="b-table__header-group-cell"
+              [style.width.px]="group.width"
+            >
+              {{ group.label }}
+            </div>
+          }
+        </div>
+        <div
+          class="b-table__header-group-spacer b-table__header-group-spacer--right"
+          [class.b-table__header-group-spacer--right-has-columns]="rightPinnedWidth() > 0"
+          [style.width.px]="rightPinnedWidth()"
+        ></div>
+      </div>
+    }
+
     <div class="b-table__header-row" role="row">
       @for (column of columns(); track column.id) {
         @if (column.id === BRICK_SELECT_COLUMN_ID) {
@@ -58,18 +93,18 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             [style.minWidth.px]="column.minWidth ?? 80"
             [style.maxWidth.px]="column.maxWidth ?? 600"
             [title]="column.tooltip ?? column.header"
-            draggable="true"
+            [attr.draggable]="column.suppressMove ? null : 'true'"
             role="columnheader"
             tabindex="0"
             (click)="toggleSort.emit({ columnId: column.id, addToSort: $event.shiftKey })"
             (contextmenu)="onHeaderContextMenu($event, column)"
-            (dragstart)="headerDragStart.emit({ columnId: column.id, event: $event })"
+            (dragstart)="onHeaderDragStart($event, column)"
             (dragover)="onHeaderDragOver($event, column.id)"
             (dragend)="onHeaderDragEnd()"
             (drop)="onHeaderDropInternal(column.id)"
           >
             @if (column.id !== draggingColumnId()) {
-            <span>{{ column.header }}</span>
+            <span>{{ resolveHeaderLabel(column) }}</span>
             <span class="b-table__sort-indicator">{{ sortIndicator()(column.id) }}</span>
             @if (column.resizable !== false) {
               <button
@@ -190,6 +225,15 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly sortIndicator = input<(columnId: string) => string>(() => '');
   readonly filters = input<Record<string, BrickFilterValue>>({});
   readonly draggingColumnId = input<string | null>(null);
+  readonly headerGroups = input<readonly BrickHeaderGroupDef[]>([]);
+  /** Total width of left-pinned columns so header groups can align with center pane. */
+  readonly leftPinnedWidth = input(0);
+  /** Total width of right-pinned columns so header groups can align with center pane. */
+  readonly rightPinnedWidth = input(0);
+  /** Total width of center columns so header groups scroll in sync with center pane. */
+  readonly centerTotalWidth = input(0);
+  /** Current horizontal scroll of center pane. */
+  readonly centerScrollLeft = input(0);
 
   readonly toggleSelectVisibleRows = output<boolean>();
   readonly toggleSort = output<{ columnId: string; addToSort: boolean }>();
@@ -215,10 +259,67 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     ].join(' ');
   }
 
+  protected resolveHeaderLabel(column: BrickTableColumnDef<T>): string {
+    return column.headerRenderer ? column.headerRenderer(column) : column.header;
+  }
+
+  protected computedHeaderGroups(): readonly { id: string; label: string; width: number }[] {
+    const columns = this.columns().filter((column) => !column.pinned);
+    const widths = this.columnWidths();
+    const groups = this.headerGroups();
+    if (groups.length === 0 || columns.length === 0) {
+      return [];
+    }
+    const labelById = new Map<string, string>(groups.map((group) => [group.id, group.label]));
+    const result: { id: string; label: string; width: number }[] = [];
+
+    let currentId: string | null = null;
+    let currentLabel = '';
+    let currentWidth = 0;
+
+    for (const column of columns) {
+      const groupId = column.headerGroupId;
+      if (!groupId || !labelById.has(groupId)) {
+        if (currentId) {
+          result.push({ id: currentId, label: currentLabel, width: currentWidth });
+          currentId = null;
+          currentLabel = '';
+          currentWidth = 0;
+        }
+        continue;
+      }
+      const label = labelById.get(groupId) ?? groupId;
+      if (groupId !== currentId) {
+        if (currentId) {
+          result.push({ id: currentId, label: currentLabel, width: currentWidth });
+        }
+        currentId = groupId;
+        currentLabel = label;
+        currentWidth = 0;
+      }
+      const width = widths[column.id] ?? column.width ?? 160;
+      currentWidth += width;
+    }
+
+    if (currentId) {
+      result.push({ id: currentId, label: currentLabel, width: currentWidth });
+    }
+
+    return result;
+  }
+
   protected onHeaderContextMenu(event: MouseEvent, column: BrickTableColumnDef<T>): void {
     event.preventDefault();
     event.stopPropagation();
     this.headerContextMenu.emit({ columnId: column.id, x: event.clientX, y: event.clientY });
+  }
+
+  protected onHeaderDragStart(event: DragEvent, column: BrickTableColumnDef<T>): void {
+    if (column.suppressMove) {
+      event.preventDefault();
+      return;
+    }
+    this.headerDragStart.emit({ columnId: column.id, event });
   }
 
   protected onHeaderDragOver(event: DragEvent, targetColumnId: string): void {

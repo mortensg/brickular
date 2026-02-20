@@ -1,4 +1,4 @@
-import { BrickRowData, BrickTableColumnDef } from 'brickular';
+import { BrickHeaderGroupDef, BrickRowData, BrickTableColumnDef } from 'brickular';
 
 export interface TableDocRow extends BrickRowData {
   readonly id: number;
@@ -14,10 +14,45 @@ export interface TableDocRow extends BrickRowData {
 }
 
 export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
-  { id: 'id', header: 'ID', field: 'id', width: 90, pinnable: true, pinned: 'left', filterType: 'number' },
-  { id: 'customer', header: 'Customer', field: 'customer', editable: true, sortable: true, filterable: true, width: 220 },
-  { id: 'country', header: 'Country', field: 'country', sortable: true, filterable: true, width: 140 },
-  { id: 'status', header: 'Status', field: 'status', sortable: true, filterable: true, width: 120 },
+  {
+    id: 'id',
+    header: 'ID',
+    field: 'id',
+    width: 90,
+    pinnable: true,
+    pinned: 'left',
+    filterType: 'number',
+    lockPinned: true,
+  },
+  {
+    id: 'customer',
+    header: 'Customer',
+    field: 'customer',
+    editable: true,
+    sortable: true,
+    filterable: true,
+    width: 220,
+    headerGroupId: 'customer',
+    headerRenderer: (column) => `${column.header} name`,
+  },
+  {
+    id: 'country',
+    header: 'Country',
+    field: 'country',
+    sortable: true,
+    filterable: true,
+    width: 140,
+    headerGroupId: 'customer',
+  },
+  {
+    id: 'status',
+    header: 'Status',
+    field: 'status',
+    sortable: true,
+    filterable: true,
+    width: 120,
+    headerGroupId: 'status',
+  },
   {
     id: 'spend',
     header: 'Spend',
@@ -26,6 +61,7 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     filterable: true,
     filterType: 'number',
     width: 130,
+    headerGroupId: 'status',
     valueFormatter: (value) => `$${Number(value).toFixed(0)}`,
   },
   {
@@ -36,6 +72,7 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     filterable: true,
     filterType: 'date',
     width: 170,
+    headerGroupId: 'meta',
   },
   {
     id: 'plan',
@@ -44,6 +81,7 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     sortable: true,
     filterable: true,
     width: 140,
+    headerGroupId: 'meta',
   },
   {
     id: 'churnRisk',
@@ -52,6 +90,7 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     sortable: true,
     filterable: true,
     width: 140,
+    headerGroupId: 'meta',
   },
   {
     id: 'nps',
@@ -61,6 +100,7 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     filterable: true,
     filterType: 'number',
     width: 110,
+    headerGroupId: 'metrics',
   },
   {
     id: 'accountOwner',
@@ -69,7 +109,16 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     sortable: true,
     filterable: true,
     width: 160,
+    headerGroupId: 'metrics',
+    suppressMove: true,
   },
+];
+
+export const headerGroups: readonly BrickHeaderGroupDef[] = [
+  { id: 'customer', label: 'Customer' },
+  { id: 'status', label: 'Status & spend' },
+  { id: 'meta', label: 'Account meta' },
+  { id: 'metrics', label: 'Health metrics' },
 ];
 
 export function createTableRows(size: number): readonly TableDocRow[] {
