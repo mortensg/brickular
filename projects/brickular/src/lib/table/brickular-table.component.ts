@@ -415,16 +415,30 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   /** Drop target column id for header (to highlight the group under cursor). */
   protected readonly dropTargetColumnIdForHeader = computed(() => this.dragDropTarget()?.targetColumnId ?? null);
 
-  /** Dragged column's original header group (before strip), so header can hide the gap when reordering within same group. Uses overrides so a column moved to another group is treated as belonging to that group on the next drag. */
+  /** Group id of the column under the cursor (drop target). Null if no target or target is ungrouped. */
+  private readonly dropTargetGroupId = computed(() => {
+    const targetId = this.dragDropTarget()?.targetColumnId ?? null;
+    if (!targetId) return null;
+    const cols = this.previewRenderedColumns();
+    const overrides = this.headerGroupOverrides();
+    const col = cols.find((c) => c.id === targetId);
+    if (!col) return null;
+    return Object.prototype.hasOwnProperty.call(overrides, col.id) ? overrides[col.id] : col.headerGroupId ?? null;
+  });
+
+  /** Dragged column's original header group for same-group reorder only. Once the cursor leaves the column's group (over another group or ungrouped), we "forget" origin so the source group is never recreated. */
   protected readonly draggingColumnOriginalGroupId = computed(() => {
     const id = this.dragColumnId();
     if (!id) return null;
     const overrides = this.headerGroupOverrides();
-    if (Object.prototype.hasOwnProperty.call(overrides, id)) {
-      return overrides[id] ?? null;
-    }
-    const col = this.renderedColumns().find((c) => c.id === id);
-    return col?.headerGroupId ?? null;
+    const columnGroup = Object.prototype.hasOwnProperty.call(overrides, id)
+      ? overrides[id] ?? null
+      : this.renderedColumns().find((c) => c.id === id)?.headerGroupId ?? null;
+    if (!columnGroup) return null;
+    const dropGroup = this.dropTargetGroupId();
+    if (dropGroup == null) return null;
+    if (dropGroup !== columnGroup) return null;
+    return columnGroup;
   });
 
   /** Columns for header with headerGroupId overrides applied (from drag-drop onto another group). During drag, the dragged column has no group so no label appears above the placeholder. */
@@ -1152,15 +1166,21 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
           [sourceColumnId]: targetPinned,
         }));
       }
-      // Assign dragged column to the target column's header group when using header groups. When dropping onto a pinned column, remove from group (pin column → leave group).
+      // Assign dragged column to the target column's header group when using header groups. Use the target's effective group (override first, then def) so dropping next to an ungrouped column leaves the dragged column ungrouped too.
       if (this.headerGroups().length > 0) {
-        const newGroupId: string | undefined = targetPinned ? undefined : targetColumn.headerGroupId;
+        const overrides = this.headerGroupOverrides();
+        const targetEffectiveGroupId = targetPinned
+          ? undefined
+          : (Object.prototype.hasOwnProperty.call(overrides, effectiveTargetColumnId)
+              ? overrides[effectiveTargetColumnId]
+              : targetColumn.headerGroupId);
+        const newGroupId: string | undefined = targetEffectiveGroupId ?? undefined;
         this.headerGroupOverrides.update((current) => {
           const next = { ...current };
           if (targetPinned) {
             delete next[sourceColumnId];
           } else {
-            next[sourceColumnId] = targetColumn.headerGroupId;
+            next[sourceColumnId] = newGroupId;
           }
           return next;
         });

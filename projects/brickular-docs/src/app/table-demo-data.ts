@@ -120,7 +120,6 @@ export const defaultColumns: readonly BrickTableColumnDef<TableDocRow>[] = [
     filterable: true,
     width: 160,
     headerGroupId: 'metrics',
-    suppressMove: true,
   },
 ];
 
