@@ -44,7 +44,7 @@ import {
 } from './table-engine';
 import { ColumnReorderAnimator } from './column-reorder-animator';
 
-/** Set to true to log header-group drag state to console (drag start, dragover hint changes, drop). Set to false to disable. */
+/** Set to true to log header-group drag state to console (drag start, dragover hint changes, drop, dragEnd). Works with both legacy merged header and nested header-container/section DOM. */
 const DEBUG_HEADER_GROUP_DRAG = true;
 
 @Component({
@@ -1201,6 +1201,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected onHeaderDrop(targetColumnId: string): void {
+    if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
+      console.log('[b-table header-group drag] drop received', { targetColumnId, dragColumnId: this.dragColumnId() });
+    }
     const sourceColumnId = this.dragColumnId();
     const hint = this.dragDropTarget();
     if (!sourceColumnId) {

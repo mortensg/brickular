@@ -29,6 +29,29 @@ export interface HeaderGroupSegment {
   readonly columnSpan: number;
 }
 
+/** Describes one logical "section" of the header: a group, ungrouped columns, or drag placeholder. */
+export type HeaderSectionDescriptor =
+  | {
+      readonly type: 'group';
+      readonly id: string;
+      readonly label: string;
+      readonly columnStart: number;
+      readonly columnSpan: number;
+      readonly columnIds: string[];
+    }
+  | {
+      readonly type: 'ungrouped';
+      readonly columnStart: number;
+      readonly columnSpan: number;
+      readonly columnIds: string[];
+    }
+  | {
+      readonly type: 'drag-gap';
+      readonly columnStart: number;
+      readonly columnSpan: number;
+      readonly width: number;
+    };
+
 /**
  * Computes the list of group row segments (and optional __drag-gap) for the center pane.
  *
@@ -123,4 +146,73 @@ export function computeHeaderGroupSegments(
   }
 
   return segments;
+}
+
+/**
+ * Builds an ordered list of header sections from center columns and segments.
+ * Each section is either a group (with column ids), an ungrouped run (column ids), or a drag-gap placeholder.
+ * Used to render the nested DOM: header-container > section > group-container | column-header(s).
+ */
+export function computeHeaderSectionDescriptors(
+  centerColumns: readonly HeaderGroupSegmentInputColumn[],
+  segments: readonly HeaderGroupSegment[],
+): HeaderSectionDescriptor[] {
+  const sections: HeaderSectionDescriptor[] = [];
+  let colIndex = 0;
+
+  for (const seg of segments) {
+    // Ungrouped run before this segment
+    if (seg.columnStart > colIndex) {
+      const columnIds = centerColumns
+        .slice(colIndex, seg.columnStart)
+        .map((c) => c.id);
+      if (columnIds.length > 0) {
+        sections.push({
+          type: 'ungrouped',
+          columnStart: colIndex,
+          columnSpan: columnIds.length,
+          columnIds,
+        });
+      }
+      colIndex = seg.columnStart;
+    }
+
+    // This segment
+    if (seg.id === '__drag-gap') {
+      sections.push({
+        type: 'drag-gap',
+        columnStart: seg.columnStart,
+        columnSpan: seg.columnSpan,
+        width: seg.width,
+      });
+    } else {
+      const columnIds = centerColumns
+        .slice(seg.columnStart, seg.columnStart + seg.columnSpan)
+        .map((c) => c.id);
+      sections.push({
+        type: 'group',
+        id: seg.id,
+        label: seg.label,
+        columnStart: seg.columnStart,
+        columnSpan: seg.columnSpan,
+        columnIds,
+      });
+    }
+    colIndex = seg.columnStart + seg.columnSpan;
+  }
+
+  // Ungrouped run after last segment
+  if (colIndex < centerColumns.length) {
+    const columnIds = centerColumns.slice(colIndex).map((c) => c.id);
+    if (columnIds.length > 0) {
+      sections.push({
+        type: 'ungrouped',
+        columnStart: colIndex,
+        columnSpan: columnIds.length,
+        columnIds,
+      });
+    }
+  }
+
+  return sections;
 }

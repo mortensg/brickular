@@ -59,6 +59,114 @@
   min-width: 0;
 }
 
+/* Nested header structure: header-container > section > group-container | column-header(s) */
+.b-table__header-container {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  min-width: max-content;
+  background: var(--b-table-header-bg);
+  border-bottom: 1px solid var(--b-table-border);
+
+  .b-table__header-cell,
+  .b-table__select-cell {
+    border-right: 1px solid var(--b-table-border);
+  }
+}
+
+.b-table__header-section {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* Sections stretch to same height; ungrouped content must fill that height */
+  align-self: stretch;
+}
+
+/* Pinned sections: stick to left/right when header scrolls horizontally (head-scroller) */
+.b-table__header-section--left {
+  display: flex;
+  flex-direction: row;
+  flex: 0 0 auto;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--b-table-header-bg);
+  border-right: 1px solid var(--b-table-border);
+}
+
+.b-table__header-section--right {
+  display: flex;
+  flex-direction: row;
+  flex: 0 0 auto;
+  position: sticky;
+  right: 0;
+  z-index: 10;
+  background: var(--b-table-header-bg);
+  border-left: 1px solid var(--b-table-border);
+}
+
+.b-table__header-group-container {
+  display: grid;
+  grid-template-rows: auto auto;
+  width: 100%;
+  min-width: 0;
+
+  > .b-table__header-group-cell {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    border-bottom: 1px solid var(--b-table-border);
+  }
+
+  > .b-table__header-cell,
+  > .b-table__select-cell {
+    grid-row: 2;
+  }
+}
+
+/* Drag-gap: single full-height placeholder (no separate group band row) so it fills the whole section */
+.b-table__header-section > .b-table__header-group-container.b-table__header-group-cell--drag-gap {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.b-table__header-group-container.b-table__header-group-cell--drag-gap {
+  display: grid;
+  grid-template-rows: var(--b-table-group-row-height, 2rem) 1fr;
+  grid-template-columns: 1fr;
+  width: 100%;
+  min-width: 0;
+
+  > .b-table__header-cell--drag-gap-full-height {
+    grid-row: 1 / -1;
+    grid-column: 1;
+  }
+}
+
+/* Ungrouped block fills section height when section is stretched to match group sections */
+.b-table__header-section > .b-table__header-ungrouped {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.b-table__header-ungrouped {
+  display: grid;
+  /* First row = group label height; second row fills rest so full-height cell spans entire section */
+  grid-template-rows: var(--b-table-group-row-height, 2rem) 1fr;
+  width: 100%;
+  min-width: 0;
+
+  > .b-table__header-cell,
+  > .b-table__select-cell {
+    grid-row: 2;
+  }
+}
+
+.b-table__header-ungrouped > .b-table__header-cell--ungrouped-full-height {
+  grid-row: 1 / -1;
+}
+
+/* Legacy merged header (kept for reference; with-groups branch now uses header-container) */
 .b-table__header-merged {
   display: grid;
   grid-template-rows: auto auto;
@@ -174,8 +282,9 @@
   border-right-color: rgba(37, 99, 235, 0.4);
 }
 
-/* Ungrouped column in merged header: cell spans both rows via grid-row 1 / -1 (no margin hack) */
-.b-table__header-merged .b-table__header-cell--ungrouped-full-height {
+/* Ungrouped column spanning both header rows (group + column header row) */
+.b-table__header-merged .b-table__header-cell--ungrouped-full-height,
+.b-table__header-container .b-table__header-cell--ungrouped-full-height {
   position: relative;
   z-index: 2;
   background: var(--b-table-header-bg);
@@ -554,6 +663,8 @@
 .b-table__header-row .b-table__select-cell--pinned-right,
 .b-table__header-merged .b-table__select-cell--pinned-left,
 .b-table__header-merged .b-table__select-cell--pinned-right,
+.b-table__header-container .b-table__select-cell--pinned-left,
+.b-table__header-container .b-table__select-cell--pinned-right,
 .b-table__filter-row .b-table__select-cell--pinned-left,
 .b-table__filter-row .b-table__select-cell--pinned-right {
   z-index: 9;
@@ -566,7 +677,8 @@
 
 /* Checkbox header: match header row background and stacking */
 .b-table__header-row .b-table__header-select-cell,
-.b-table__header-merged .b-table__header-select-cell {
+.b-table__header-merged .b-table__header-select-cell,
+.b-table__header-container .b-table__header-select-cell {
   display: grid;
   place-items: center;
   position: relative;
@@ -579,6 +691,8 @@
 .b-table__header-row .b-table__select-cell.b-table__header-cell--drag-slot,
 .b-table__header-merged .b-table__header-cell--drag-slot,
 .b-table__header-merged .b-table__select-cell.b-table__header-cell--drag-slot,
+.b-table__header-container .b-table__header-cell--drag-slot,
+.b-table__header-container .b-table__select-cell.b-table__header-cell--drag-slot,
 .b-table__filter-row .b-table__filter-cell--drag-slot,
 .b-table__filter-row .b-table__select-cell.b-table__filter-cell--drag-slot {
   background: rgba(37, 99, 235, 0.08);
@@ -647,6 +761,8 @@
 
 .b-table__header-row > *:first-child.b-table__header-cell--pinned-left,
 .b-table__header-row > *:first-child.b-table__header-select-cell,
+.b-table__header-container .b-table__header-section--left > *:first-child.b-table__header-cell--pinned-left,
+.b-table__header-container .b-table__header-section--left > *:first-child.b-table__header-select-cell,
 .b-table__filter-row > *:first-child.b-table__filter-cell--pinned-left,
 .b-table__filter-row > *:first-child.b-table__select-cell {
   left: 0;
@@ -669,6 +785,12 @@
   right: 0;
   z-index: 9;
   background: var(--b-table-header-bg);
+}
+
+/* Nested header: last cell in right section gets right: 0 (inline stickyRightPx overrides per column) */
+.b-table__header-container .b-table__header-section--right > *:last-child.b-table__header-cell--pinned-right,
+.b-table__header-container .b-table__header-section--right > *:last-child.b-table__header-select-cell {
+  right: 0;
 }
 
 .b-table__cell--pinned-right {
