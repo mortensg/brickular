@@ -81,6 +81,8 @@
   flex-direction: column;
   /* Sections stretch to same height; ungrouped content must fill that height */
   align-self: stretch;
+  /* Smooth width changes when sections reorder (e.g. drag-gap appears) */
+  transition: width 0.15s ease-out;
 }
 
 /* Pinned sections: stick to left/right when header scrolls horizontally (head-scroller) */
@@ -106,11 +108,20 @@
   border-left: 1px solid var(--b-table-border);
 }
 
+/* Group container fills section height so all groups share the same row height when one wraps */
+.b-table__header-section > .b-table__header-group-container {
+  flex: 1 1 0;
+  min-height: min-content; /* Section needs intrinsic height from content so flex row can use max(sections) */
+  min-width: 0;
+}
+
 .b-table__header-group-container {
   display: grid;
-  grid-template-rows: auto auto;
+  /* Row 1: group band (auto); row 2: at least content height, then 1fr when section stretches so all groups match */
+  grid-template-rows: auto minmax(min-content, 1fr);
   width: 100%;
   min-width: 0;
+  transition: width 0.15s ease-out;
 
   > .b-table__header-group-cell {
     grid-column: 1 / -1;
@@ -243,6 +254,7 @@
   align-items: center;
   padding: 0.2rem 0.5rem;
   overflow: hidden;
+  padding-left: 0px;
 }
 
 .b-table__header-group-label {
@@ -268,6 +280,19 @@
     border-left: none;
     border-right: 2px solid rgba(37, 99, 235, 0.8);
   }
+}
+
+/* Group resize handle: right edge of group band, same UX as column resize */
+.b-table__header-group-resize-handle {
+  flex: 0 0 7px;
+  width: 7px;
+  min-width: 7px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  align-self: stretch;
 }
 
 /* No label or border emphasis for the placeholder column during drag */

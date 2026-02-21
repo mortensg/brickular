@@ -120,6 +120,15 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                       <span class="b-table__header-group-label">{{ section.label }}</span>
                     </div>
                     <div class="b-table__header-group-edge b-table__header-group-edge--right" [class.b-table__header-group-edge--drop-target]="isUngroupEdgeDropTarget(section.id, 'right')" (dragover)="onGroupEdgeDragOver($event, section.id, 'right')" (drop)="onGroupEdgeDrop($event, section.id, 'right')"></div>
+                    @if (canResizeGroup(section)) {
+                      <button
+                        type="button"
+                        class="b-table__header-group-resize-handle"
+                        (mousedown)="onGroupResizeStart($event, section.id); $event.stopPropagation()"
+                        (dragstart)="$event.preventDefault(); $event.stopPropagation()"
+                        [attr.aria-label]="'Resize group ' + section.label"
+                      ></button>
+                    }
                   </div>
                   @for (column of section.columns; track column.id) {
                     @if (column.id === BRICK_SELECT_COLUMN_ID) {
@@ -430,6 +439,8 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   /** Emits when a header drag ends without drop (e.g. cancel or drag outside). */
   readonly headerDragEnd = output<void>();
   readonly resizeStart = output<{ columnId: string; event: MouseEvent }>();
+  /** Emitted when the user starts resizing a header group (mousedown on group resize handle). Parent should run group resize and distribute width to columns. */
+  readonly groupResizeStart = output<{ groupId: string; event: MouseEvent }>();
   readonly headerContextMenu = output<{ columnId: string; x: number; y: number }>();
   readonly textFilterChange = output<{ columnId: string; value: string }>();
   readonly numberFilterChange = output<{ columnId: string; edge: 'min' | 'max'; value?: number }>();
@@ -586,6 +597,16 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   protected sectionGridColumns(columns: BrickTableColumnDef<T>[]): string {
     const w = this.columnWidths();
     return columns.map((c) => `${w[c.id] ?? c.width ?? 160}px`).join(' ');
+  }
+
+  /** True when the group has at least one resizable column (so we show the group resize handle). */
+  protected canResizeGroup(section: { columns: BrickTableColumnDef<T>[] }): boolean {
+    return section.columns.length > 0 && section.columns.some((c) => c.resizable !== false);
+  }
+
+  protected onGroupResizeStart(event: MouseEvent, groupId: string): void {
+    event.preventDefault();
+    this.groupResizeStart.emit({ groupId, event });
   }
 
   protected onHeaderContextMenu(event: MouseEvent, column: BrickTableColumnDef<T>): void {

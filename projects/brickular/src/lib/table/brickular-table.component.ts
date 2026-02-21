@@ -109,6 +109,7 @@ const DEBUG_HEADER_GROUP_DRAG = true;
               (headerDragTarget)="onHeaderDragTarget($event)"
               (headerDragEnd)="onHeaderDragEnd()"
               (resizeStart)="startResizeById($event.columnId, $event.event)"
+              (groupResizeStart)="startGroupResize($event.groupId, $event.event)"
               (headerContextMenu)="openHeaderContextMenu($event.columnId, $event.x, $event.y)"
               (textFilterChange)="setTextFilter($event.columnId, $event.value)"
               (numberFilterChange)="setNumberFilter($event.columnId, $event.edge, $event.value)"
@@ -1067,9 +1068,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
       this.logHeaderGroupDragState('dragEnd', {});
     }
-    this.dragColumnId.set(null);
-    this.dragDropTarget.set(null);
-    this.columnReorderAnimator?.reset();
+    this.clearHeaderDragState();
   }
 
   protected onHeaderDragTarget(hint: BrickHeaderDragTarget | null): void {
@@ -1152,6 +1151,64 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     window.addEventListener('mouseup', onMouseUp);
   }
 
+  /** Resize a header group: distribute new total width proportionally to columns in the group (respecting min/max per column). */
+  protected startGroupResize(groupId: string, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const overrides = this.headerGroupOverrides();
+    const cols = this.renderedColumns().filter(
+      (c) => !c.pinned && (Object.prototype.hasOwnProperty.call(overrides, c.id) ? overrides[c.id] : c.headerGroupId) === groupId,
+    );
+    if (cols.length === 0) return;
+    this.isResizing.set(true);
+    const startX = event.clientX;
+    const widths = this.columnWidths();
+    const startWidths = new Map<string, number>(
+      cols.map((c) => [c.id, widths[c.id] ?? c.width ?? 160]),
+    );
+    const startTotal = [...startWidths.values()].reduce((a, b) => a + b, 0);
+    const minMax = new Map<string, { min: number; max: number }>(
+      cols.map((c) => [c.id, { min: c.minWidth ?? 80, max: c.maxWidth ?? 600 }]),
+    );
+    let rafId: number | null = null;
+    let lastMoveEvent: MouseEvent | null = null;
+    const flushResize = (): void => {
+      rafId = null;
+      const moveEvent = lastMoveEvent;
+      lastMoveEvent = null;
+      if (moveEvent && startTotal > 0) {
+        const delta = moveEvent.clientX - startX;
+        const newTotal = Math.max(0, startTotal + delta);
+        const ratio = newTotal / startTotal;
+        const nextWidths: Record<string, number> = {};
+        for (const col of cols) {
+          const startW = startWidths.get(col.id) ?? 0;
+          const { min, max } = minMax.get(col.id) ?? { min: 80, max: 600 };
+          const w = Math.min(max, Math.max(min, startW * ratio));
+          nextWidths[col.id] = w;
+        }
+        this.columnWidths.update((current) => ({ ...current, ...nextWidths }));
+      }
+    };
+    const onMouseMove = (moveEvent: MouseEvent): void => {
+      lastMoveEvent = moveEvent;
+      if (rafId === null) rafId = requestAnimationFrame(flushResize);
+    };
+    const onMouseUp = (): void => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      lastMoveEvent = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      this.isResizing.set(false);
+      this.resizeEndedAt.set(Date.now());
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
   /** Debug: log header-group drag state. Only runs when DEBUG_HEADER_GROUP_DRAG is true. */
   private logHeaderGroupDragState(
     event: 'dragStart' | 'dragover' | 'drop' | 'dragEnd',
@@ -1191,6 +1248,9 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     this.dragColumnId.set(columnId);
     event.dataTransfer?.setData('text/plain', columnId);
     event.dataTransfer!.effectAllowed = 'move';
+    // Safety net: clear drag state when the drag operation ends, even if the header's
+    // dragend never fires (e.g. source node removed during re-render).
+    window.addEventListener('dragend', () => this.clearHeaderDragState(), { once: true });
     if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
       this.logHeaderGroupDragState('dragStart', {
         columnId,
@@ -1200,6 +1260,13 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     }
   }
 
+  /** Clears header drag state (dragColumnId, dragDropTarget, animator). Used by dragend and drop handlers and by the global dragend safety net. */
+  private clearHeaderDragState(): void {
+    this.dragColumnId.set(null);
+    this.dragDropTarget.set(null);
+    this.columnReorderAnimator?.reset();
+  }
+
   protected onHeaderDrop(targetColumnId: string): void {
     if (DEBUG_HEADER_GROUP_DRAG && this.headerGroups().length > 0) {
       console.log('[b-table header-group drag] drop received', { targetColumnId, dragColumnId: this.dragColumnId() });
@@ -1207,17 +1274,13 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     const sourceColumnId = this.dragColumnId();
     const hint = this.dragDropTarget();
     if (!sourceColumnId) {
-      this.dragDropTarget.set(null);
-      this.dragColumnId.set(null);
-      this.columnReorderAnimator?.reset();
+      this.clearHeaderDragState();
       return;
     }
     const effectiveTargetColumnId = hint?.targetColumnId ?? targetColumnId;
     const insertBefore = hint?.before ?? true;
     if (sourceColumnId === effectiveTargetColumnId) {
-      this.dragDropTarget.set(null);
-      this.dragColumnId.set(null);
-      this.columnReorderAnimator?.reset();
+      this.clearHeaderDragState();
       return;
     }
     this.headerOrder.update((order) => {
@@ -1290,9 +1353,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       }
     }
 
-    this.dragDropTarget.set(null);
-    this.dragColumnId.set(null);
-    this.columnReorderAnimator?.reset();
+    this.clearHeaderDragState();
   }
 
   protected cyclePinned(columnId: string): void {
