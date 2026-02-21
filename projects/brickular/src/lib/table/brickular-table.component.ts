@@ -18,12 +18,14 @@ import { BrickTableRowComponent } from './table-row.component';
 import { BrickTableToolbarComponent } from './table-toolbar.component';
 import { BrickTableFooterComponent } from './table-footer.component';
 import {
+  BRICK_GROUP_DRAG_GAP_ID,
   BRICK_SELECT_COLUMN_ID,
   BrickColumnGroupChange,
   BrickColumnPin,
   BrickCellEditEvent,
   BrickFilterValue,
   BrickHeaderDragTarget,
+  BrickHeaderGroupDragTarget,
   BrickHeaderGroupDef,
   BrickRowData,
   BrickSelectionMode,
@@ -102,12 +104,19 @@ const DEBUG_HEADER_GROUP_DRAG = true;
               [dropTargetUngroupAtEdgeForSegments]="dropTargetUngroupAtEdgeForSegments()"
               [draggingColumnOriginalGroupId]="draggingColumnOriginalGroupId()"
               [draggingColumnSourceGroupId]="draggingColumnSourceGroupId()"
+              [draggingGroupId]="dragGroupId()"
+              [groupDropTarget]="groupDropTarget()"
+              [groupDragPlaceholder]="groupDragPlaceholder()"
               (toggleSelectVisibleRows)="toggleSelectVisibleRows($event)"
               (toggleSort)="toggleSortById($event.columnId, $event.addToSort)"
               (headerDragStart)="onHeaderDragStart($event.columnId, $event.event)"
               (headerDrop)="onHeaderDrop($event)"
               (headerDragTarget)="onHeaderDragTarget($event)"
               (headerDragEnd)="onHeaderDragEnd()"
+              (groupDragStart)="onGroupDragStart($event.groupId, $event.event)"
+              (groupDragTarget)="onGroupDragTarget($event)"
+              (groupDrop)="onGroupDrop($event)"
+              (groupDragEnd)="onGroupDragEnd()"
               (resizeStart)="startResizeById($event.columnId, $event.event)"
               (groupResizeStart)="startGroupResize($event.groupId, $event.event)"
               (headerContextMenu)="openHeaderContextMenu($event.columnId, $event.x, $event.y)"
@@ -348,6 +357,10 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
   protected readonly dragColumnId = signal<string | null>(null);
   /** During drag: where the column would drop (so we can show preview order). ungroupAtEdge = drop on 5px edge = place ungrouped. */
   private readonly dragDropTarget = signal<BrickHeaderDragTarget | null>(null);
+  /** During group drag: which group is being dragged. */
+  protected readonly dragGroupId = signal<string | null>(null);
+  /** During group drag: where the group would drop (before/after target group). */
+  protected readonly groupDropTarget = signal<BrickHeaderGroupDragTarget | null>(null);
   private readonly isResizing = signal(false);
   private readonly resizeEndedAt = signal(0);
   protected readonly scrollTop = signal(0);
@@ -396,7 +409,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     );
   });
 
-  /** Column order for display: when dragging, reorder so the grid shows the drop result. Uses exact drop target (any position within a group). */
+  /** Column order for display: when dragging a column, reorder so the grid shows the drop result. Uses exact drop target (any position within a group). */
   protected readonly previewRenderedColumns = computed(() => {
     const cols = this.renderedColumns();
     const dragId = this.dragColumnId();
@@ -420,6 +433,83 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       : draggedCol;
     const insertAt = target.before ? targetIdx : targetIdx + 1;
     return [...without.slice(0, insertAt), previewDraggedColumn, ...without.slice(insertAt)];
+  });
+
+  /** When dragging a group: column order with center reordered so the group is at the drop position. Body and header use this so the group-drag placeholder aligns with the grid. */
+  protected readonly previewRenderedColumnsForGroupDrag = computed(() => {
+    const cols = this.renderedColumns();
+    const dragGroupId = this.dragGroupId();
+    const target = this.groupDropTarget();
+    if (!dragGroupId || !target) return cols;
+    const overrides = this.headerGroupOverrides();
+    const getGroup = (columnId: string): string | undefined => {
+      const c = cols.find((col) => col.id === columnId);
+      return Object.prototype.hasOwnProperty.call(overrides, columnId)
+        ? overrides[columnId]
+        : c?.headerGroupId;
+    };
+    const centerCols = cols.filter((c) => !c.pinned);
+    const centerIds = centerCols.map((c) => c.id);
+    const dragGroupColIds = centerIds.filter((id) => getGroup(id) === dragGroupId);
+    const targetGroupColIds = centerIds.filter((id) => getGroup(id) === target.targetGroupId);
+    if (dragGroupColIds.length === 0 || targetGroupColIds.length === 0) return cols;
+    const without = centerIds.filter((id) => !dragGroupColIds.includes(id));
+    const insertBeforeIdx = without.findIndex((id) => targetGroupColIds.includes(id));
+    if (insertBeforeIdx === -1) return cols;
+    const insertAt = target.before
+      ? insertBeforeIdx
+      : insertBeforeIdx + targetGroupColIds.length;
+    const newCenterIds = [
+      ...without.slice(0, insertAt),
+      ...dragGroupColIds,
+      ...without.slice(insertAt),
+    ];
+    const leftCols = cols.filter((c) => c.pinned === 'left');
+    const rightCols = cols.filter((c) => c.pinned === 'right');
+    const colById = new Map(cols.map((c) => [c.id, c]));
+    const reordered = [
+      ...leftCols,
+      ...newCenterIds.map((id) => colById.get(id)!).filter(Boolean),
+      ...rightCols,
+    ];
+    return reordered as readonly BrickTableColumnDef<T>[];
+  });
+
+  /** When group dragging: reordered columns with synthetic gap column inserted so body has same slot count as header (placeholder reflected in grid). */
+  protected readonly displayRenderedColumnsWithGroupGap = computed(() => {
+    const reordered = this.previewRenderedColumnsForGroupDrag();
+    const placeholder = this.groupDragPlaceholder();
+    if (!placeholder) return reordered;
+    const left = reordered.filter((c) => c.pinned === 'left');
+    const center = reordered.filter((c) => !c.pinned);
+    const right = reordered.filter((c) => c.pinned === 'right');
+    const overrides = this.headerGroupOverrides();
+    const getGroup = (id: string): string | undefined => {
+      const c = reordered.find((col) => col.id === id);
+      return Object.prototype.hasOwnProperty.call(overrides, id) ? overrides[id] : c?.headerGroupId;
+    };
+    const firstIdx = center.findIndex((c) => getGroup(c.id) === placeholder.targetGroupId);
+    if (firstIdx === -1) return reordered;
+    const targetGroupCount = center.filter((c) => getGroup(c.id) === placeholder.targetGroupId).length;
+    const insertGapIdx = placeholder.before ? firstIdx : firstIdx + targetGroupCount;
+    const gapColumn = { id: BRICK_GROUP_DRAG_GAP_ID, header: '' } as BrickTableColumnDef<T>;
+    const centerWithGap = [
+      ...center.slice(0, insertGapIdx),
+      gapColumn,
+      ...center.slice(insertGapIdx),
+    ];
+    return [...left, ...centerWithGap, ...right] as readonly BrickTableColumnDef<T>[];
+  });
+
+  /** Columns to display in header and body: preview order when column or group dragging (with gap in body when group drag), else rendered order. */
+  protected readonly displayRenderedColumns = computed(() => {
+    if (this.dragGroupId() && this.groupDropTarget()) {
+      return this.displayRenderedColumnsWithGroupGap();
+    }
+    if (this.dragColumnId() && this.dragDropTarget()) {
+      return this.previewRenderedColumns();
+    }
+    return this.renderedColumns();
   });
 
   /** Drop target column id for header (to highlight the group under cursor). */
@@ -481,9 +571,36 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
       : col?.headerGroupId ?? null;
   });
 
-  /** Columns for header with headerGroupId overrides applied (from drag-drop onto another group). During drag, the dragged column has no group so no label appears above the placeholder. */
+  /** When dragging a group: placeholder descriptor (width + where to insert) for the group-drag-gap section. */
+  protected readonly groupDragPlaceholder = computed(() => {
+    const dragId = this.dragGroupId();
+    const target = this.groupDropTarget();
+    if (!dragId || !target) return null;
+    const cols = this.renderedColumns();
+    const overrides = this.headerGroupOverrides();
+    const centerCols = cols.filter((c) => !c.pinned);
+    const getGroup = (columnId: string): string | undefined => {
+      const c = cols.find((col) => col.id === columnId);
+      return Object.prototype.hasOwnProperty.call(overrides, columnId)
+        ? overrides[columnId]
+        : c?.headerGroupId;
+    };
+    const widths = this.columnWidths();
+    const groupColIds = centerCols.filter((c) => getGroup(c.id) === dragId).map((c) => c.id);
+    if (groupColIds.length === 0) return null;
+    const width = groupColIds.reduce(
+      (sum, id) => sum + (widths[id] ?? cols.find((c) => c.id === id)?.width ?? 160),
+      0,
+    );
+    return { width, targetGroupId: target.targetGroupId, before: target.before };
+  });
+
+  /** Columns for header: reordered when group/column dragging, with column-drag group override. Header does not get the synthetic gap column (it renders its own group-drag-gap section). */
   protected readonly headerColumnsWithGroupOverrides = computed(() => {
-    const cols = this.previewRenderedColumns();
+    const cols =
+      this.dragGroupId() && this.groupDropTarget()
+        ? this.previewRenderedColumnsForGroupDrag()
+        : this.displayRenderedColumns();
     const overrides = this.headerGroupOverrides();
     const dragId = this.dragColumnId();
     return cols.map((c) => {
@@ -524,13 +641,13 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     return this.pagedRows().slice(range.start, range.end);
   });
   protected readonly leftColumns = computed(() =>
-    this.previewRenderedColumns().filter((column) => column.pinned === 'left'),
+    this.displayRenderedColumns().filter((column) => column.pinned === 'left'),
   );
   protected readonly rightColumns = computed(() =>
-    this.previewRenderedColumns().filter((column) => column.pinned === 'right'),
+    this.displayRenderedColumns().filter((column) => column.pinned === 'right'),
   );
   protected readonly centerColumns = computed(() =>
-    this.previewRenderedColumns().filter((column) => !column.pinned),
+    this.displayRenderedColumns().filter((column) => !column.pinned),
   );
   protected readonly lastLeftColumnId = computed(() => {
     const left = this.leftColumns();
@@ -543,7 +660,7 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
 
   /** Cumulative left offset (px) for each left-pinned column for sticky positioning. First left column gets 0, second gets width(first), etc. */
   protected readonly stickyLeftPx = computed(() => {
-    const columns = this.previewRenderedColumns();
+    const columns = this.displayRenderedColumns();
     const widths = this.resolvedColumnWidths();
     const result: Record<string, number> = {};
     let left = 0;
@@ -621,36 +738,42 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     const columns = this.renderedColumns();
     const widths = this.columnWidths();
     const viewportWidth = this.viewportWidth();
+    let result: Record<string, number>;
     if (columns.length === 0 || viewportWidth <= 0) {
-      return widths;
-    }
-
-    const baseTotal = columns.reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
-    const extra = viewportWidth - baseTotal;
-    if (extra <= 0) {
-      return widths;
-    }
-
-    const flexColumns = columns.filter((column) => (column.flex ?? 0) > 0);
-    const growColumns = flexColumns.length > 0 ? flexColumns : columns;
-    const totalFlex = growColumns.reduce((sum, column) => sum + (column.flex ?? 1), 0);
-    if (totalFlex <= 0) {
-      return widths;
-    }
-
-    return columns.reduce<Record<string, number>>((acc, column) => {
-      const current = widths[column.id] ?? column.width ?? 160;
-      if (!growColumns.includes(column)) {
-        acc[column.id] = current;
-        return acc;
+      result = { ...widths };
+    } else {
+      const baseTotal = columns.reduce((sum, column) => sum + (widths[column.id] ?? column.width ?? 160), 0);
+      const extra = viewportWidth - baseTotal;
+      if (extra <= 0) {
+        result = { ...widths };
+      } else {
+        const flexColumns = columns.filter((column) => (column.flex ?? 0) > 0);
+        const growColumns = flexColumns.length > 0 ? flexColumns : columns;
+        const totalFlex = growColumns.reduce((sum, column) => sum + (column.flex ?? 1), 0);
+        if (totalFlex <= 0) {
+          result = { ...widths };
+        } else {
+          result = columns.reduce<Record<string, number>>((acc, column) => {
+            const current = widths[column.id] ?? column.width ?? 160;
+            if (!growColumns.includes(column)) {
+              acc[column.id] = current;
+              return acc;
+            }
+            const ratio = (column.flex ?? 1) / totalFlex;
+            const grown = current + extra * ratio;
+            const min = column.minWidth ?? 80;
+            const max = column.maxWidth ?? 600;
+            acc[column.id] = Math.min(max, Math.max(min, grown));
+            return acc;
+          }, {});
+        }
       }
-      const ratio = (column.flex ?? 1) / totalFlex;
-      const grown = current + extra * ratio;
-      const min = column.minWidth ?? 80;
-      const max = column.maxWidth ?? 600;
-      acc[column.id] = Math.min(max, Math.max(min, grown));
-      return acc;
-    }, {});
+    }
+    const placeholder = this.groupDragPlaceholder();
+    if (placeholder) {
+      result = { ...result, [BRICK_GROUP_DRAG_GAP_ID]: placeholder.width };
+    }
+    return result;
   });
 
   protected readonly leftPinnedScrollbarWidth = computed(() => {
@@ -1102,6 +1225,72 @@ export class BrickTableComponent<T extends BrickRowData = BrickRowData> {
     requestAnimationFrame(() => {
       this.columnReorderAnimator?.animateAfter();
     });
+  }
+
+  protected onGroupDragStart(groupId: string, event: DragEvent): void {
+    if (this.isResizing()) {
+      event.preventDefault();
+      return;
+    }
+    this.dragGroupId.set(groupId);
+    event.dataTransfer?.setData('text/plain', `group:${groupId}`);
+    event.dataTransfer!.effectAllowed = 'move';
+    window.addEventListener('dragend', () => this.clearGroupDragState(), { once: true });
+  }
+
+  protected onGroupDragTarget(hint: BrickHeaderGroupDragTarget | null): void {
+    this.groupDropTarget.set(hint);
+  }
+
+  protected onGroupDrop(payload: { targetGroupId: string; before: boolean }): void {
+    const dragId = this.dragGroupId();
+    if (!dragId || dragId === payload.targetGroupId) {
+      this.clearGroupDragState();
+      return;
+    }
+    const cols = this.renderedColumns();
+    const overrides = this.headerGroupOverrides();
+    const centerCols = cols.filter((c) => !c.pinned);
+    const getGroup = (columnId: string): string | undefined => {
+      const c = cols.find((col) => col.id === columnId);
+      return Object.prototype.hasOwnProperty.call(overrides, columnId)
+        ? overrides[columnId]
+        : c?.headerGroupId;
+    };
+    const centerIds = centerCols.map((c) => c.id);
+    const dragGroupColIds = centerIds.filter((id) => getGroup(id) === dragId);
+    const targetGroupColIds = centerIds.filter((id) => getGroup(id) === payload.targetGroupId);
+    if (dragGroupColIds.length === 0 || targetGroupColIds.length === 0) {
+      this.clearGroupDragState();
+      return;
+    }
+    const without = centerIds.filter((id) => !dragGroupColIds.includes(id));
+    const insertBeforeIdx = without.findIndex((id) => targetGroupColIds.includes(id));
+    if (insertBeforeIdx === -1) {
+      this.clearGroupDragState();
+      return;
+    }
+    const insertAt = payload.before
+      ? insertBeforeIdx
+      : insertBeforeIdx + targetGroupColIds.length;
+    const newCenterIds = [
+      ...without.slice(0, insertAt),
+      ...dragGroupColIds,
+      ...without.slice(insertAt),
+    ];
+    const leftIds = cols.filter((c) => c.pinned === 'left').map((c) => c.id);
+    const rightIds = cols.filter((c) => c.pinned === 'right').map((c) => c.id);
+    this.headerOrder.update(() => [...leftIds, ...newCenterIds, ...rightIds]);
+    this.clearGroupDragState();
+  }
+
+  protected onGroupDragEnd(): void {
+    this.clearGroupDragState();
+  }
+
+  private clearGroupDragState(): void {
+    this.dragGroupId.set(null);
+    this.groupDropTarget.set(null);
   }
 
   protected openHeaderContextMenu(columnId: string, x: number, y: number): void {

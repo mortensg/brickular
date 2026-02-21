@@ -5,6 +5,7 @@ import {
   BrickFilterValue,
   BrickHeaderDragTarget,
   BrickHeaderGroupDef,
+  BrickHeaderGroupDragTarget,
   BrickRowData,
   BrickTableColumnDef,
 } from './table-types';
@@ -101,7 +102,7 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
             }
           </div>
         }
-        @for (section of centerHeaderSections(); track section.type === 'drag-gap' ? section.columnStart : (section.type === 'group' ? section.id : 'ungrouped-' + section.columnStart)) {
+        @for (section of centerHeaderSectionsWithGroupPlaceholder(); track sectionTrack(section)) {
           <div class="b-table__header-section" [style.width.px]="sectionWidthPx(section)">
             @switch (section.type) {
               @case ('group') {
@@ -112,8 +113,14 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                 >
                   <div
                     class="b-table__header-group-cell"
+                    [class.b-table__header-group-cell--dragging]="draggingGroupId() === section.id"
+                    [class.b-table__header-group-cell--drop-target-before]="groupDropTarget()?.targetGroupId === section.id && groupDropTarget()?.before"
+                    [class.b-table__header-group-cell--drop-target-after]="groupDropTarget()?.targetGroupId === section.id && !groupDropTarget()?.before"
                     [attr.role]="'columnheader'"
                     [attr.aria-label]="section.label"
+                    draggable="true"
+                    (dragstart)="onGroupBarDragStart($event, section.id)"
+                    (dragend)="onGroupBarDragEnd()"
                   >
                     <div class="b-table__header-group-edge b-table__header-group-edge--left" [class.b-table__header-group-edge--drop-target]="isUngroupEdgeDropTarget(section.id, 'left')" (dragover)="onGroupEdgeDragOver($event, section.id, 'left')" (drop)="onGroupEdgeDrop($event, section.id, 'left')"></div>
                     <div class="b-table__header-group-middle" (dragover)="onGroupMiddleDragOver($event, section.id)" (drop)="onGroupMiddleDrop($event, section.id)">
@@ -184,6 +191,21 @@ import { tableHeaderCellVariants, toPinVariant } from './table-variants';
                     role="columnheader"
                     [attr.data-column-id]="draggingColumnId()"
                     style="width: 100%"
+                  ></div>
+                </div>
+              }
+              @case ('group-drag-gap') {
+                <div
+                  class="b-table__header-group-container b-table__header-group-cell--drag-gap b-table__header-group-cell--group-drag-gap"
+                  style="width: 100%"
+                  (dragover)="onGroupDragGapDragOver($event)"
+                  (drop)="onGroupDragGapDrop($event, section.targetGroupId, section.before)"
+                >
+                  <div
+                    class="b-table__header-cell b-table__header-cell--drag-gap-full-height"
+                    role="columnheader"
+                    style="width: 100%"
+                    aria-label="Drop group here"
                   ></div>
                 </div>
               }
@@ -441,6 +463,14 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly resizeStart = output<{ columnId: string; event: MouseEvent }>();
   /** Emitted when the user starts resizing a header group (mousedown on group resize handle). Parent should run group resize and distribute width to columns. */
   readonly groupResizeStart = output<{ groupId: string; event: MouseEvent }>();
+  /** Emitted when the user starts dragging a header group bar. */
+  readonly groupDragStart = output<{ groupId: string; event: DragEvent }>();
+  /** Emitted during group drag when over another group bar (where the group would drop). */
+  readonly groupDragTarget = output<BrickHeaderGroupDragTarget | null>();
+  /** Emitted when a group is dropped on a target group (reorder). */
+  readonly groupDrop = output<BrickHeaderGroupDragTarget>();
+  /** Emitted when a group drag ends (cancel or drop). */
+  readonly groupDragEnd = output<void>();
   readonly headerContextMenu = output<{ columnId: string; x: number; y: number }>();
   readonly textFilterChange = output<{ columnId: string; value: string }>();
   readonly numberFilterChange = output<{ columnId: string; edge: 'min' | 'max'; value?: number }>();
@@ -483,6 +513,12 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   readonly draggingColumnOriginalGroupId = input<string | null>(null);
   /** Dragged column's group from def/override so the group band keeps full width when drop target is null. */
   readonly draggingColumnSourceGroupId = input<string | null>(null);
+  /** During group drag: which group is being dragged. */
+  readonly draggingGroupId = input<string | null>(null);
+  /** During group drag: where the group would drop (for drop indicator). */
+  readonly groupDropTarget = input<BrickHeaderGroupDragTarget | null>(null);
+  /** When set, insert a group-drag-gap placeholder section at this position (same UX as column drag-gap). */
+  readonly groupDragPlaceholder = input<{ width: number; targetGroupId: string; before: boolean } | null>(null);
 
   protected computedHeaderGroups(): readonly { id: string; label: string; width: number; columnStart: number; columnSpan: number }[] {
     const centerColumns = this.columns().filter((c) => !c.pinned);
@@ -534,7 +570,7 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   );
 
   /**
-   * Center header sections: group (with columns), ungrouped (columns), or drag-gap.
+   * Center header sections: group (with columns), ungrouped (columns), drag-gap, or group-drag-gap.
    * Resolves segment descriptors to full column defs for the nested template.
    */
   protected readonly centerHeaderSections = computed(() => {
@@ -570,12 +606,37 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     });
   });
 
-  /** Width in px for a section (sum of column widths or single width for drag-gap). Uses exact column width for drag-gap to avoid rounding gap. */
+  /** Center sections with group-drag placeholder inserted when dragging a group (same UX as column drag-gap). */
+  protected readonly centerHeaderSectionsWithGroupPlaceholder = computed(() => {
+    const sections = this.centerHeaderSections();
+    const placeholder = this.groupDragPlaceholder();
+    if (!placeholder) return sections;
+    const idx = sections.findIndex(
+      (s) => s.type === 'group' && s.id === placeholder.targetGroupId,
+    );
+    if (idx === -1) return sections;
+    const gap: {
+      type: 'group-drag-gap';
+      width: number;
+      targetGroupId: string;
+      before: boolean;
+    } = {
+      type: 'group-drag-gap',
+      width: placeholder.width,
+      targetGroupId: placeholder.targetGroupId,
+      before: placeholder.before,
+    };
+    const insertAt = placeholder.before ? idx : idx + 1;
+    return [...sections.slice(0, insertAt), gap, ...sections.slice(insertAt)];
+  });
+
+  /** Width in px for a section (sum of column widths or single width for drag-gap / group-drag-gap). */
   protected sectionWidthPx(
     section:
       | { type: 'group'; columns: BrickTableColumnDef<T>[] }
       | { type: 'ungrouped'; columns: BrickTableColumnDef<T>[] }
-      | { type: 'drag-gap'; width: number },
+      | { type: 'drag-gap'; width: number }
+      | { type: 'group-drag-gap'; width: number; targetGroupId: string; before: boolean },
   ): number {
     if (section.type === 'drag-gap') {
       const id = this.draggingColumnId();
@@ -586,11 +647,26 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
       }
       return section.width;
     }
+    if (section.type === 'group-drag-gap') return section.width;
     const w = this.columnWidths();
     return section.columns.reduce(
       (sum, c) => sum + (w[c.id] ?? c.width ?? 160),
       0,
     );
+  }
+
+  /** Track by for center header sections (including group-drag-gap). */
+  protected sectionTrack(
+    section:
+      | { type: 'group'; id: string }
+      | { type: 'ungrouped'; columnStart: number }
+      | { type: 'drag-gap'; columnStart: number }
+      | { type: 'group-drag-gap'; targetGroupId: string; before: boolean },
+  ): string {
+    if (section.type === 'group') return section.id;
+    if (section.type === 'ungrouped') return 'ungrouped-' + section.columnStart;
+    if (section.type === 'drag-gap') return 'drag-gap-' + section.columnStart;
+    return `group-drag-gap-${section.targetGroupId}-${section.before}`;
   }
 
   /** grid-template-columns string for a section that has columns (group or ungrouped). */
@@ -676,12 +752,21 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
 
   /** Catch-all: allow drop over the whole header and complete drop using current hint when drop lands on container (e.g. gap band or after layout shift). */
   protected onHeaderContainerDragOver(event: DragEvent): void {
+    if (this.draggingGroupId()) {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      return;
+    }
     if (!this.draggingColumnId()) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
   }
 
   protected onHeaderContainerDrop(event: DragEvent): void {
+    if (this.draggingGroupId()) {
+      event.preventDefault();
+      return;
+    }
     if (!this.draggingColumnId()) return;
     event.preventDefault();
     const targetId = this.dropTargetColumnId();
@@ -712,7 +797,37 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
     return edge === 'left' ? before : !before;
   }
 
+  protected onGroupBarDragStart(event: DragEvent, groupId: string): void {
+    event.stopPropagation();
+    this.groupDragStart.emit({ groupId, event });
+  }
+
+  protected onGroupBarDragEnd(): void {
+    this.groupDragEnd.emit();
+  }
+
+  protected onGroupDragGapDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  protected onGroupDragGapDrop(event: DragEvent, targetGroupId: string, before: boolean): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.draggingGroupId() && this.draggingGroupId() !== targetGroupId) {
+      this.groupDrop.emit({ targetGroupId, before });
+    }
+  }
+
   protected onGroupEdgeDragOver(event: DragEvent, groupId: string, edge: 'left' | 'right'): void {
+    if (this.draggingGroupId() && this.draggingGroupId() !== groupId) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      this.groupDragTarget.emit({ targetGroupId: groupId, before: edge === 'left' });
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
@@ -729,6 +844,14 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected onGroupEdgeDrop(event: DragEvent, groupId: string, edge: 'left' | 'right'): void {
+    if (this.draggingGroupId()) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.draggingGroupId() !== groupId) {
+        this.groupDrop.emit({ targetGroupId: groupId, before: edge === 'left' });
+      }
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const firstId = this.getFirstColumnIdInGroup(groupId);
@@ -742,6 +865,16 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected onGroupMiddleDragOver(event: DragEvent, groupId: string): void {
+    if (this.draggingGroupId() && this.draggingGroupId() !== groupId) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      const el = event.currentTarget as HTMLElement | null;
+      const rect = el?.getBoundingClientRect();
+      const before = rect ? event.clientX - rect.left < rect.width / 2 : true;
+      this.groupDragTarget.emit({ targetGroupId: groupId, before });
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
@@ -754,6 +887,17 @@ export class BrickTableHeaderComponent<T extends BrickRowData = BrickRowData> {
   }
 
   protected onGroupMiddleDrop(event: DragEvent, groupId: string): void {
+    if (this.draggingGroupId()) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.draggingGroupId() !== groupId) {
+        const el = event.currentTarget as HTMLElement | null;
+        const rect = el?.getBoundingClientRect();
+        const before = rect ? event.clientX - rect.left < rect.width / 2 : true;
+        this.groupDrop.emit({ targetGroupId: groupId, before });
+      }
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const lastId = this.getLastColumnIdInGroup(groupId);

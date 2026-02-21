@@ -1,6 +1,13 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BRICK_SELECT_COLUMN_ID, BrickCellContext, BrickRowData, BrickTableColumnDef, BrickTableRow } from './table-types';
+import {
+  BRICK_GROUP_DRAG_GAP_ID,
+  BRICK_SELECT_COLUMN_ID,
+  BrickCellContext,
+  BrickRowData,
+  BrickTableColumnDef,
+  BrickTableRow,
+} from './table-types';
 import { displayValue as engineDisplayValue, rawValue as engineRawValue } from './table-engine';
 import { tableBodyCellVariants, toPinVariant } from './table-variants';
 
@@ -16,7 +23,16 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
       (mouseleave)="rowMouseLeave.emit()"
     >
       @for (column of columns(); track column.id; let columnIndex = $index) {
-        @if (column.id === dragColumnId()) {
+        @if (column.id === BRICK_GROUP_DRAG_GAP_ID) {
+          <div
+            class="b-table__cell b-table__cell--group-drag-gap"
+            role="gridcell"
+            [attr.data-nav-row]="visibleRowIndex()"
+            [attr.data-nav-col]="globalColumnIndex(columnIndex)"
+            [attr.data-column-id]="column.id"
+            [style.width.px]="columnWidths()[column.id]"
+          ></div>
+        } @else if (column.id === dragColumnId()) {
           <div
             [class.b-table__select-cell]="column.id === BRICK_SELECT_COLUMN_ID"
             [class.b-table__cell]="column.id !== BRICK_SELECT_COLUMN_ID"
@@ -98,6 +114,7 @@ import { tableBodyCellVariants, toPinVariant } from './table-variants';
 })
 export class BrickTableRowComponent<T extends BrickRowData = BrickRowData> {
   protected readonly BRICK_SELECT_COLUMN_ID = BRICK_SELECT_COLUMN_ID;
+  protected readonly BRICK_GROUP_DRAG_GAP_ID = BRICK_GROUP_DRAG_GAP_ID;
   readonly row = input.required<BrickTableRow<T>>();
   readonly visibleRowIndex = input(0);
   /** Index of this row in paged rows (visibleRange.start + visibleRowIndex). Used so active cell survives scroll. */

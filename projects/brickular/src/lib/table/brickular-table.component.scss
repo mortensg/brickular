@@ -245,6 +245,19 @@
   border-right: 1px solid var(--b-table-border);
   box-sizing: border-box;
   min-width: 0;
+  cursor: grab;
+  &:active {
+    cursor: grabbing;
+  }
+  &.b-table__header-group-cell--dragging {
+    opacity: 0.7;
+  }
+  &.b-table__header-group-cell--drop-target-before {
+    border-left: 3px solid rgba(37, 99, 235, 0.9);
+  }
+  &.b-table__header-group-cell--drop-target-after {
+    border-right: 3px solid rgba(37, 99, 235, 0.9);
+  }
 }
 
 .b-table__header-group-middle {
@@ -299,6 +312,12 @@
 .b-table__header-group-cell--drag-gap {
   border-right-color: transparent;
   background: transparent;
+}
+
+/* Group drag placeholder: same as column drag-gap but with a subtle dashed outline so the drop slot is visible */
+.b-table__header-group-cell--group-drag-gap {
+  border: 1px dashed rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.06);
 }
 
 /* Expand/highlight the group under the drop target so it’s clear the column will join this group */
@@ -732,6 +751,13 @@
   border-left: 2px solid #2563eb;
   border-right: 2px solid #2563eb;
   transition: background 0.12s ease-out;
+}
+
+/* Group drag placeholder in body: aligns with header group-drag-gap so the grid reflects the drop position */
+.b-table__cell--group-drag-gap {
+  background: rgba(37, 99, 235, 0.06);
+  border-left: 1px dashed rgba(37, 99, 235, 0.5);
+  border-right: 1px dashed rgba(37, 99, 235, 0.5);
 }
 
 .b-table__cell--selected {

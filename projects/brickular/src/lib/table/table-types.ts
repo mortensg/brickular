@@ -3,6 +3,9 @@ export type BrickRowData = Record<string, unknown>;
 /** Reserved column id for the built-in row selection checkbox column. Pinned left by default, behaves like a normal column. */
 export const BRICK_SELECT_COLUMN_ID = '__brick_select';
 
+/** Synthetic column id for the group-drag placeholder cell in the body (aligns with header group-drag-gap). */
+export const BRICK_GROUP_DRAG_GAP_ID = '__brick_group_drag_gap';
+
 export type BrickSortDirection = 'asc' | 'desc';
 export type BrickSelectionMode = 'single' | 'multiple';
 export type BrickColumnPin = 'left' | 'right';
@@ -54,6 +57,12 @@ export interface BrickHeaderDragTarget {
   readonly targetColumnId: string;
   readonly before: boolean;
   readonly ungroupAtEdge?: boolean;
+}
+
+/** Hint from header during group drag: where the group would drop. before = insert before target group, false = insert after. */
+export interface BrickHeaderGroupDragTarget {
+  readonly targetGroupId: string;
+  readonly before: boolean;
 }
 
 export interface BrickTableColumnDef<T extends BrickRowData = BrickRowData> {
