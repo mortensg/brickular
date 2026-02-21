@@ -308,13 +308,13 @@
   align-self: stretch;
 }
 
-/* No label or border emphasis for the placeholder column during drag */
+/* Column drag placeholder in header: same visual as group-drag-gap (dashed outline, light fill) */
 .b-table__header-group-cell--drag-gap {
-  border-right-color: transparent;
-  background: transparent;
+  border: 1px dashed rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.06);
 }
 
-/* Group drag placeholder: same as column drag-gap but with a subtle dashed outline so the drop slot is visible */
+/* Group drag placeholder in header */
 .b-table__header-group-cell--group-drag-gap {
   border: 1px dashed rgba(37, 99, 235, 0.5);
   background: rgba(37, 99, 235, 0.06);
@@ -730,7 +730,7 @@
   background: var(--b-table-header-bg);
 }
 
-/* Drag slot: empty column placeholder during reorder (header, filter row, body) */
+/* Column drag slot: empty placeholder during column reorder (header, filter row, body). Same visual as group-drag placeholders. */
 .b-table__header-row .b-table__header-cell--drag-slot,
 .b-table__header-row .b-table__select-cell.b-table__header-cell--drag-slot,
 .b-table__header-merged .b-table__header-cell--drag-slot,
@@ -739,21 +739,19 @@
 .b-table__header-container .b-table__select-cell.b-table__header-cell--drag-slot,
 .b-table__filter-row .b-table__filter-cell--drag-slot,
 .b-table__filter-row .b-table__select-cell.b-table__filter-cell--drag-slot {
-  background: rgba(37, 99, 235, 0.08);
-  transition: background 0.12s ease-out;
-  border-left: 2px solid #2563eb;
-  border-right: 2px solid #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+  border-left: 1px dashed rgba(37, 99, 235, 0.5);
+  border-right: 1px dashed rgba(37, 99, 235, 0.5);
 }
 
 .b-table__cell--drag-slot,
 .b-table__select-cell.b-table__cell--drag-slot {
-  background: rgba(37, 99, 235, 0.08);
-  border-left: 2px solid #2563eb;
-  border-right: 2px solid #2563eb;
-  transition: background 0.12s ease-out;
+  background: rgba(37, 99, 235, 0.06);
+  border-left: 1px dashed rgba(37, 99, 235, 0.5);
+  border-right: 1px dashed rgba(37, 99, 235, 0.5);
 }
 
-/* Group drag placeholder in body: aligns with header group-drag-gap so the grid reflects the drop position */
+/* Group drag placeholder in body: same visual, aligns with header group-drag-gap */
 .b-table__cell--group-drag-gap {
   background: rgba(37, 99, 235, 0.06);
   border-left: 1px dashed rgba(37, 99, 235, 0.5);
